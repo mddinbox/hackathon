@@ -1,0 +1,128 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta
+      name="description"
+      content="A local GitHub Copilot CLI terminal with useful Bing promotions during wait time."
+    />
+    <title>Copilot CLI + Bing</title>
+    <link rel="stylesheet" href="/vendor/xterm/css/xterm.css" />
+    <link rel="stylesheet" href="/styles.css" />
+  </head>
+  <body>
+    <div class="ambient ambient-one"></div>
+    <div class="ambient ambient-two"></div>
+
+    <main class="workspace">
+      <header class="topbar">
+        <div class="brand">
+          <div class="brand-mark" aria-hidden="true">
+            <span></span><span></span>
+          </div>
+          <div>
+            <p class="eyebrow">GITHUB COPILOT CLI</p>
+            <h1>Build at the speed of thought.</h1>
+          </div>
+        </div>
+        <div class="connection">
+          <span id="connection-dot" class="connection-dot"></span>
+          <span id="connection-label">Connecting</span>
+        </div>
+      </header>
+
+      <section class="terminal-shell" aria-label="Copilot CLI terminal">
+        <div class="terminal-toolbar">
+          <div class="window-controls" aria-hidden="true">
+            <i></i><i></i><i></i>
+          </div>
+          <span>copilot — interactive session</span>
+          <button id="reconnect" type="button" hidden>Reconnect</button>
+        </div>
+        <div class="terminal-workbench">
+          <div id="terminal"></div>
+          <aside id="pet-panel" class="pet-panel" aria-label="BytePet companion" hidden>
+            <div class="pet-heading">
+              <span>BYTEPET</span>
+              <button id="pet-collapse" type="button" aria-label="Collapse BytePet">[ − ]</button>
+            </div>
+            <div id="pet-expanded">
+              <pre id="pet-art" class="pet-art" aria-label="BytePet ASCII art"></pre>
+              <strong id="pet-name">Byte</strong>
+              <span id="pet-stage" class="pet-stage">Egg · Level 0</span>
+              <div class="pet-progress-label">
+                <span>Sparks</span>
+                <span id="pet-progress-copy">0 / 10</span>
+              </div>
+              <div class="pet-progress" aria-hidden="true">
+                <span id="pet-progress-fill"></span>
+              </div>
+              <span id="pet-mood" class="pet-mood">Mood · Curious</span>
+              <div class="pet-actions">
+                <button id="pet-feed" type="button">[ FEED · 2 ]</button>
+                <button id="pet-play" type="button">[ PLAY · 2 ]</button>
+              </div>
+              <p id="pet-message" class="pet-message" aria-live="polite">Earn Sparks from optional rewarded offers.</p>
+            </div>
+            <button id="pet-collapsed" class="pet-collapsed" type="button" hidden>
+              <span id="pet-mini-art">🥚</span>
+              <span id="pet-mini-copy">Egg · 0/10</span>
+            </button>
+          </aside>
+        </div>
+        <aside id="promotion" class="promotion" aria-live="polite" hidden>
+          <div class="cmd-ad-heading">
+            <span class="cmd-rule" aria-hidden="true">├─</span>
+            <span class="sponsored">BING SHOPPING · DEMO REWARDED OFFER</span>
+            <span class="cmd-rule-fill" aria-hidden="true"></span>
+            <span id="activity-label">Copilot is working...</span>
+          </div>
+          <div class="cmd-ad-body">
+            <span class="cmd-prompt" aria-hidden="true">&gt;</span>
+            <div class="promotion-copy">
+              <p id="promotion-title"></p>
+              <div class="product-details">
+                <strong id="product-price"></strong>
+                <span id="product-merchant"></span>
+                <span class="product-rating">
+                  <span aria-hidden="true">★</span>
+                  <span id="product-rating"></span>
+                </span>
+              </div>
+            </div>
+            <a
+              id="promotion-link"
+              class="promotion-link"
+              href="https://www.bing.com/"
+              target="_blank"
+              rel="noopener noreferrer"
+            >
+              [ OPEN + EARN 3 SPARKS ↗ ]
+            </a>
+            <button
+              id="dismiss-promotion"
+              class="dismiss"
+              type="button"
+              aria-label="Hide this promotion"
+            >
+              [ × ]
+            </button>
+          </div>
+          <div class="reward-disclosure">Optional demo reward · opens Bing in a new tab · maximum 5 rewards daily</div>
+          <div class="cmd-ad-footer" aria-hidden="true">└────────────────────────────────────────────────────────────────────</div>
+        </aside>
+      </section>
+
+      <footer>
+        <span>Local session</span>
+        <span class="footer-separator">•</span>
+        <span>Promotions appear only while Copilot is busy</span>
+      </footer>
+    </main>
+
+    <script src="/vendor/xterm/lib/xterm.js"></script>
+    <script src="/vendor/xterm-addon-fit/lib/addon-fit.js"></script>
+    <script type="module" src="/app.js"></script>
+  </body>
+</html>

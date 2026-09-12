@@ -1,0 +1,485 @@
+<Window x:Class="FloatingStockTicker.MainWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:controls="clr-namespace:FloatingStockTicker.Controls"
+        xmlns:models="clr-namespace:FloatingStockTicker.Models"
+        xmlns:shell="clr-namespace:System.Windows.Shell;assembly=PresentationFramework"
+        Title="Floating Stock Ticker"
+        Icon="/Assets/FloatingStockTicker.ico"
+        Width="500"
+        Height="500"
+        MinWidth="420"
+        MinHeight="260"
+        WindowStyle="None"
+        ResizeMode="CanResize"
+        WindowStartupLocation="Manual"
+        AllowsTransparency="True"
+        Background="Transparent"
+        ShowInTaskbar="True"
+        Topmost="True">
+    <shell:WindowChrome.WindowChrome>
+        <shell:WindowChrome CaptionHeight="0"
+                            CornerRadius="12"
+                            GlassFrameThickness="0"
+                            ResizeBorderThickness="7" />
+    </shell:WindowChrome.WindowChrome>
+
+    <Border Background="{StaticResource WindowBackgroundBrush}"
+            BorderBrush="{StaticResource WindowBorderBrush}"
+            BorderThickness="1"
+            CornerRadius="12"
+            MouseLeftButtonDown="WindowSurface_OnMouseLeftButtonDown">
+        <Border.Effect>
+            <DropShadowEffect BlurRadius="18"
+                              Direction="270"
+                              Opacity="0.34"
+                              ShadowDepth="5"
+                              Color="#000000" />
+        </Border.Effect>
+
+        <Grid>
+            <Grid.RowDefinitions>
+                <RowDefinition Height="56" />
+                <RowDefinition Height="*" />
+            </Grid.RowDefinitions>
+
+            <Grid x:Name="HeaderGrid"
+                  Grid.Row="0"
+                  Background="{StaticResource HeaderBackgroundBrush}"
+                  MouseLeftButtonDown="HeaderGrid_OnMouseLeftButtonDown">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="Auto" />
+                </Grid.ColumnDefinitions>
+
+                <StackPanel Grid.Column="0"
+                            Margin="14,0,0,0"
+                            VerticalAlignment="Center">
+                    <TextBlock Text="FLOATING TICKER"
+                               Foreground="{StaticResource SubtleTextBrush}"
+                               FontFamily="{StaticResource AppFont}"
+                               FontSize="16"
+                               FontWeight="SemiBold" />
+                    <TextBlock x:Name="HeaderSummaryText"
+                               Margin="0,1,0,0"
+                               Foreground="{StaticResource PrimaryTextBrush}"
+                               FontFamily="{StaticResource AppFont}"
+                               FontSize="16"
+                               FontWeight="SemiBold"
+                               Text="No symbols" />
+                </StackPanel>
+
+                <Button Grid.Column="1"
+                        Margin="2,0,2,0"
+                        Click="SettingsButton_OnClick"
+                        Style="{StaticResource HeaderActionButtonStyle}"
+                        ToolTip="Settings"
+                        AutomationProperties.Name="Settings">
+                    <Viewbox Width="18"
+                             Height="18"
+                             Stretch="Uniform"
+                             HorizontalAlignment="Center"
+                             VerticalAlignment="Center">
+                        <Canvas Width="16"
+                                Height="16"
+                                SnapsToDevicePixels="True">
+                            <Line X1="1" Y1="4" X2="5" Y2="4"
+                                  Stroke="{StaticResource PrimaryTextBrush}"
+                                  StrokeThickness="1.6"
+                                  StrokeStartLineCap="Round"
+                                  StrokeEndLineCap="Round" />
+                            <Line X1="9" Y1="4" X2="15" Y2="4"
+                                  Stroke="{StaticResource PrimaryTextBrush}"
+                                  StrokeThickness="1.6"
+                                  StrokeStartLineCap="Round"
+                                  StrokeEndLineCap="Round" />
+                            <Ellipse Canvas.Left="5"
+                                     Canvas.Top="2"
+                                     Width="4"
+                                     Height="4"
+                                     Fill="{StaticResource PrimaryTextBrush}" />
+                            <Line X1="1" Y1="12" X2="10" Y2="12"
+                                  Stroke="{StaticResource PrimaryTextBrush}"
+                                  StrokeThickness="1.6"
+                                  StrokeStartLineCap="Round"
+                                  StrokeEndLineCap="Round" />
+                            <Line X1="14" Y1="12" X2="15" Y2="12"
+                                  Stroke="{StaticResource PrimaryTextBrush}"
+                                  StrokeThickness="1.6"
+                                  StrokeStartLineCap="Round"
+                                  StrokeEndLineCap="Round" />
+                            <Ellipse Canvas.Left="10"
+                                     Canvas.Top="10"
+                                     Width="4"
+                                     Height="4"
+                                     Fill="{StaticResource PrimaryTextBrush}" />
+                        </Canvas>
+                    </Viewbox>
+                </Button>
+                <Button Grid.Column="2"
+                        x:Name="AddSymbolToggleButton"
+                        Margin="2,0,10,0"
+                        Click="AddSymbolToggleButton_OnClick"
+                        Style="{StaticResource HeaderActionButtonStyle}"
+                        ToolTip="Add symbol"
+                        AutomationProperties.Name="Add symbol">
+                    <Viewbox Width="18"
+                             Height="18"
+                             Stretch="Uniform"
+                             HorizontalAlignment="Center"
+                             VerticalAlignment="Center">
+                        <Grid Width="16"
+                              Height="16"
+                              SnapsToDevicePixels="True">
+                            <Rectangle Width="2"
+                                       Height="12"
+                                       RadiusX="1"
+                                       RadiusY="1"
+                                       Fill="{StaticResource PrimaryTextBrush}" />
+                            <Rectangle Width="12"
+                                       Height="2"
+                                       RadiusX="1"
+                                       RadiusY="1"
+                                       Fill="{StaticResource PrimaryTextBrush}" />
+                        </Grid>
+                    </Viewbox>
+                </Button>
+                <Button Grid.Column="3"
+                        Margin="2,0"
+                        Click="MinimizeButton_OnClick"
+                        Style="{StaticResource IconButtonStyle}"
+                        ToolTip="Minimize"
+                        AutomationProperties.Name="Minimize">
+                    <TextBlock Text="—" FontSize="17" />
+                </Button>
+                <Button Grid.Column="4"
+                        Margin="2,0"
+                        Click="CloseButton_OnClick"
+                        Style="{StaticResource IconButtonStyle}"
+                        ToolTip="Close"
+                        AutomationProperties.Name="Close">
+                    <TextBlock Text="×" FontSize="19" />
+                </Button>
+            </Grid>
+
+            <Grid Grid.Row="1" Margin="8,13,4,4">
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="*" />
+                </Grid.RowDefinitions>
+
+                <Grid x:Name="AddSymbolEditorPanel"
+                      Grid.Row="0"
+                      Visibility="Collapsed">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="Auto" />
+                    </Grid.ColumnDefinitions>
+                    <TextBox x:Name="AddSymbolBox"
+                             Grid.Column="0"
+                             MaxLength="24"
+                             Style="{StaticResource CompactTextBoxStyle}"
+                             ToolTip="Add a ticker symbol, for example MSFT"
+                             KeyDown="AddSymbolBox_OnKeyDown"
+                             AutomationProperties.Name="Symbol to add" />
+                    <Button Grid.Column="1"
+                            Margin="6,0,0,0"
+                            Click="AddSymbolButton_OnClick"
+                            Content="✓"
+                            Style="{StaticResource CompactIconButtonStyle}"
+                            ToolTip="Add symbol"
+                            AutomationProperties.Name="Add symbol" />
+                </Grid>
+
+                <TextBlock x:Name="ValidationText"
+                           Grid.Row="1"
+                           Margin="2,6,0,0"
+                           Foreground="{StaticResource NegativeBrush}"
+                           FontFamily="{StaticResource AppFont}"
+                           FontSize="16"
+                           TextWrapping="Wrap" />
+
+                <StackPanel Grid.Row="2"
+                            Margin="0,11,0,9"
+                            Orientation="Horizontal"
+                            ToolTip="Refresh health: green within 3 minutes, yellow through 10 minutes, red after 10 minutes.">
+                    <Ellipse x:Name="StatusDot"
+                             Width="8"
+                             Height="8"
+                             Margin="0,0,7,0"
+                             VerticalAlignment="Center"
+                             Fill="{StaticResource MutedTextBrush}" />
+                    <TextBlock x:Name="StatusText"
+                               VerticalAlignment="Center"
+                               Foreground="{StaticResource SecondaryTextBrush}"
+                               FontFamily="{StaticResource AppFont}"
+                               FontSize="16"
+                               Text="Waiting for refresh…" />
+                    <TextBlock x:Name="GlobalLastUpdatedText"
+                               Margin="12,0,0,0"
+                               VerticalAlignment="Center"
+                               Foreground="{StaticResource SubtleTextBrush}"
+                               FontFamily="{StaticResource AppFont}"
+                               FontSize="16"
+                               Text="Updated — · 10s poll"
+                               ToolTip="Latest successful refresh time and polling interval." />
+                </StackPanel>
+
+                <Grid Grid.Row="3">
+                    <ScrollViewer VerticalScrollBarVisibility="Auto"
+                                  HorizontalScrollBarVisibility="Disabled"
+                                  CanContentScroll="False"
+                                  IsDeferredScrollingEnabled="False"
+                                  PanningMode="VerticalOnly"
+                                  PanningDeceleration="0.001">
+                        <ScrollViewer.Resources>
+                            <Style TargetType="{x:Type ScrollBar}"
+                                   BasedOn="{StaticResource ThinVerticalScrollBarStyle}" />
+                        </ScrollViewer.Resources>
+                        <StackPanel>
+                            <Border DataContext="{Binding MarketOverview}"
+                                    Style="{StaticResource MarketOverviewBorderStyle}"
+                                    ToolTip="{Binding OverviewTooltipText}"
+                                    AutomationProperties.Name="Market overview">
+                                <Grid>
+                                    <Grid.RowDefinitions>
+                                        <RowDefinition Height="Auto" />
+                                        <RowDefinition Height="Auto" />
+                                        <RowDefinition Height="Auto" />
+                                    </Grid.RowDefinitions>
+                                    <Grid Grid.Row="0">
+                                        <TextBlock Style="{StaticResource MarketOverviewTitleStyle}"
+                                                   Text="MARKET OVERVIEW" />
+                                    </Grid>
+                                    <ItemsControl Grid.Row="1"
+                                                  Margin="0,7,0,0"
+                                                  ItemsSource="{Binding IndexCards}">
+                                        <ItemsControl.ItemsPanel>
+                                            <ItemsPanelTemplate>
+                                                <UniformGrid Columns="3" />
+                                            </ItemsPanelTemplate>
+                                        </ItemsControl.ItemsPanel>
+                                        <ItemsControl.ItemTemplate>
+                                            <DataTemplate>
+                                                <StackPanel Margin="0,0,5,0"
+                                                            ToolTip="{Binding TooltipText}"
+                                                            AutomationProperties.Name="{Binding Label}">
+                                                    <StackPanel Orientation="Horizontal">
+                                                        <TextBlock Style="{StaticResource MarketOverviewLabelStyle}"
+                                                                   Text="{Binding Label}" />
+                                                        <Line X1="0"
+                                                              Y1="1"
+                                                              X2="18"
+                                                              Y2="1"
+                                                              Margin="6,0,0,0"
+                                                              VerticalAlignment="Center"
+                                                              Stroke="{Binding SeriesBrush}"
+                                                              StrokeThickness="{x:Static models:SparklineMetrics.SeriesStrokeThickness}"
+                                                              StrokeStartLineCap="Round"
+                                                              StrokeEndLineCap="Round" />
+                                                    </StackPanel>
+                                                    <Grid Margin="0,3,0,0">
+                                                        <Grid.ColumnDefinitions>
+                                                            <ColumnDefinition Width="22" />
+                                                            <ColumnDefinition Width="*" />
+                                                        </Grid.ColumnDefinitions>
+                                                        <Grid.RowDefinitions>
+                                                            <RowDefinition Height="Auto" />
+                                                            <RowDefinition Height="Auto" />
+                                                        </Grid.RowDefinitions>
+                                                        <controls:SessionIconControl Grid.Row="0"
+                                                                                     Grid.Column="0"
+                                                                                     Margin="0,3,5,0"
+                                                                                     VerticalAlignment="Top"
+                                                                                     Style="{StaticResource TickerCardSessionIconStyle}"
+                                                                                     Kind="{Binding CashSessionIconKind}"
+                                                                                     ToolTip="{Binding CashSessionIconName}"
+                                                                                     AutomationProperties.Name="{Binding CashSessionIconName}" />
+                                                        <StackPanel Grid.Row="0"
+                                                                    Grid.Column="1">
+                                                            <TextBlock Style="{StaticResource MarketOverviewPriceStyle}"
+                                                                       Text="{Binding PriceText}" />
+                                                            <TextBlock Style="{StaticResource MarketOverviewChangeStyle}"
+                                                                       Foreground="{Binding DirectionBrush}"
+                                                                       Text="{Binding ChangeText}" />
+                                                        </StackPanel>
+                                                        <controls:SessionIconControl Grid.Row="1"
+                                                                                     Grid.Column="0"
+                                                                                     Margin="0,6,5,0"
+                                                                                     VerticalAlignment="Top"
+                                                                                     Visibility="{Binding FuturesVisibility}"
+                                                                                     Style="{StaticResource TickerCardSessionIconStyle}"
+                                                                                     Kind="{Binding FuturesSessionIconKind}"
+                                                                                     ToolTip="{Binding FuturesSessionIconName}"
+                                                                                     AutomationProperties.Name="{Binding FuturesSessionIconName}" />
+                                                        <StackPanel Grid.Row="1"
+                                                                    Grid.Column="1"
+                                                                    Margin="0,3,0,0"
+                                                                    Visibility="{Binding FuturesVisibility}">
+                                                            <TextBlock Style="{StaticResource MarketOverviewPriceStyle}"
+                                                                       Text="{Binding FuturesPriceText}" />
+                                                            <TextBlock Style="{StaticResource MarketOverviewChangeStyle}"
+                                                                       Foreground="{Binding FuturesDirectionBrush}"
+                                                                       Text="{Binding FuturesChangeText}" />
+                                                        </StackPanel>
+                                                    </Grid>
+                                                    <TextBlock Foreground="{StaticResource WarningBrush}"
+                                                               FontFamily="{StaticResource AppFont}"
+                                                               FontSize="16"
+                                                               TextTrimming="CharacterEllipsis"
+                                                               Visibility="{Binding ErrorVisibility}"
+                                                               Text="{Binding ErrorText}" />
+                                                </StackPanel>
+                                            </DataTemplate>
+                                        </ItemsControl.ItemTemplate>
+                                    </ItemsControl>
+                                    <controls:CompositeSparklineControl Grid.Row="2"
+                                                                         Style="{StaticResource MarketOverviewChartStyle}"
+                                                                         Series="{Binding ChartSeries}"
+                                                                         ReferenceStroke="{StaticResource OverviewReferenceBrush}"
+                                                                         ToolTip="{Binding OverviewTooltipText}" />
+                                </Grid>
+                            </Border>
+                        <ItemsControl x:Name="TickerItemsControl"
+                                          HorizontalContentAlignment="Stretch"
+                                          ItemsSource="{Binding TickerCards}">
+                                <ItemsControl.ItemsPanel>
+                                    <ItemsPanelTemplate>
+                                        <controls:ResponsiveWrapPanel />
+                                    </ItemsPanelTemplate>
+                            </ItemsControl.ItemsPanel>
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate>
+                                    <Border Style="{StaticResource TickerCardBorderStyle}"
+                                            AllowDrop="True"
+                                            Cursor="SizeAll"
+                                            PreviewMouseLeftButtonDown="TickerCard_OnPreviewMouseLeftButtonDown"
+                                            PreviewMouseLeftButtonUp="TickerCard_OnPreviewMouseLeftButtonUp"
+                                            MouseMove="TickerCard_OnMouseMove"
+                                            DragOver="TickerCard_OnDragOver"
+                                            Drop="TickerCard_OnDrop">
+                                        <Grid>
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="3*"
+                                                                  MinWidth="220" />
+                                                <ColumnDefinition Width="2*"
+                                                                  MinWidth="100" />
+                                            </Grid.ColumnDefinitions>
+                                            <Grid.RowDefinitions>
+                                                <RowDefinition Height="Auto" />
+                                                <RowDefinition Height="Auto" />
+                                            </Grid.RowDefinitions>
+
+                                            <StackPanel Grid.Row="0"
+                                                        Grid.Column="0"
+                                                        Margin="0,0,6,0">
+                                                <TextBlock VerticalAlignment="Center"
+                                                           Foreground="{StaticResource PrimaryTextBrush}"
+                                                           FontFamily="{StaticResource AppFont}"
+                                                           FontSize="{x:Static models:TickerCardTypography.TileFontSize}"
+                                                           FontWeight="SemiBold"
+                                                           TextTrimming="CharacterEllipsis"
+                                                           Text="{Binding Symbol}" />
+
+                                                <Grid Style="{StaticResource TickerCardQuoteStackStyle}">
+                                                    <Grid.ColumnDefinitions>
+                                                        <ColumnDefinition Width="{StaticResource TickerCardSessionIconColumnWidth}" />
+                                                        <ColumnDefinition Width="Auto" />
+                                                        <ColumnDefinition Width="*" />
+                                                    </Grid.ColumnDefinitions>
+                                                    <Grid.RowDefinitions>
+                                                        <RowDefinition Height="Auto" />
+                                                        <RowDefinition Height="Auto" />
+                                                    </Grid.RowDefinitions>
+                                                    <controls:SessionIconControl Grid.Row="0"
+                                                                                 Grid.Column="0"
+                                                                                 Style="{StaticResource TickerCardSessionIconStyle}"
+                                                                                 Kind="{Binding RegularSessionIconKind}"
+                                                                                 ToolTip="{Binding RegularSessionIconName}"
+                                                                                 AutomationProperties.Name="{Binding RegularSessionIconName}" />
+                                                    <TextBlock Grid.Row="0"
+                                                               Grid.Column="1"
+                                                               Margin="4,0,0,0"
+                                                               Style="{StaticResource TickerCardPriceTextStyle}"
+                                                               Text="{Binding PriceText}" />
+                                                    <TextBlock Grid.Row="0"
+                                                               Grid.Column="2"
+                                                               Style="{StaticResource TickerCardChangeTextStyle}"
+                                                               Foreground="{Binding DailyDirectionBrush}"
+                                                               Text="{Binding ChangeText}" />
+                                                    <controls:SessionIconControl Grid.Row="1"
+                                                                                 Grid.Column="0"
+                                                                                 Visibility="{Binding ExtendedVisibility}"
+                                                                                 Style="{StaticResource TickerCardSessionIconStyle}"
+                                                                                 Kind="{Binding ExtendedSessionIconKind}"
+                                                                                 ToolTip="{Binding ExtendedSessionIconName}"
+                                                                                 AutomationProperties.Name="{Binding ExtendedSessionIconName}" />
+                                                    <TextBlock Grid.Row="1"
+                                                               Grid.Column="1"
+                                                               Margin="4,0,0,0"
+                                                               Visibility="{Binding ExtendedVisibility}"
+                                                               Style="{StaticResource TickerCardExtendedPriceTextStyle}"
+                                                               Foreground="{StaticResource PrimaryTextBrush}"
+                                                               Text="{Binding ExtendedPriceText}" />
+                                                    <TextBlock Grid.Row="1"
+                                                               Grid.Column="2"
+                                                               Visibility="{Binding ExtendedVisibility}"
+                                                               Style="{StaticResource TickerCardExtendedChangeTextStyle}"
+                                                               Foreground="{Binding ExtendedDirectionBrush}"
+                                                               Text="{Binding ExtendedChangeText}" />
+                                                </Grid>
+                                            </StackPanel>
+
+                                            <controls:SparklineControl Grid.Row="0"
+                                                                       Grid.Column="1"
+                                                                       Style="{StaticResource TickerCardSparklineStyle}"
+                                                                       Values="{Binding ChartValues}"
+                                                                       Stroke="{Binding DailyDirectionBrush}"
+                                                                       ReferenceStroke="{StaticResource SparklineReferenceBrush}"
+                                                                       SessionDividerPosition="{Binding PostMarketDividerFraction}"
+                                                                       SessionDividerStroke="{StaticResource SparklineSessionDividerBrush}"
+                                                                       PreviousCloseReference="{Binding PreviousCloseReference}"
+                                                                       ToolTip="{Binding ChartTooltipText}" />
+
+                                            <Button Grid.Row="0"
+                                                    Grid.Column="1"
+                                                    Margin="0,-7,-9,0"
+                                                    Style="{StaticResource TickerCardRemoveButtonStyle}"
+                                                    VerticalAlignment="Top"
+                                                    HorizontalAlignment="Right"
+                                                    Panel.ZIndex="1"
+                                                    Click="RemoveTickerButton_OnClick"
+                                                    Content="×"
+                                                    ToolTip="Remove symbol" />
+
+                                            <TextBlock Grid.Row="1"
+                                                       Grid.Column="0"
+                                                       Grid.ColumnSpan="2"
+                                                       Style="{StaticResource TickerCardErrorTextStyle}"
+                                                       Visibility="{Binding ErrorVisibility}"
+                                                       Text="{Binding ErrorText}" />
+                                        </Grid>
+                                    </Border>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                            <TextBlock x:Name="NoSymbolsText"
+                                       HorizontalAlignment="Center"
+                                       Margin="0,4,0,0"
+                                       Foreground="{StaticResource SubtleTextBrush}"
+                                       FontFamily="{StaticResource AppFont}"
+                                       FontSize="16"
+                                       Text="Click + to start tracking." />
+                        </StackPanel>
+                    </ScrollViewer>
+                </Grid>
+            </Grid>
+
+        </Grid>
+    </Border>
+</Window>

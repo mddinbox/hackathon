@@ -1,0 +1,11 @@
+<Project Sdk="WixToolset.Sdk/4.0.6">
+  <PropertyGroup>
+    <OutputType>Package</OutputType>
+    <Platform>x64</Platform>
+    <ProductVersion Condition="'$(ProductVersion)' == ''">1.0.0</ProductVersion>
+    <PublishDir Condition="'$(PublishDir)' == ''">$(MSBuildProjectDirectory)\..\bin\Release\net8.0-windows\win-x64\publish\</PublishDir>
+    <OutputPath Condition="'$(OutputPath)' == ''">$(MSBuildProjectDirectory)\..\artifacts\installer\</OutputPath>
+    <OutputName>FloatingStockTicker-$(ProductVersion)-x64</OutputName>
+    <DefineConstants>$(DefineConstants);ProductVersion=$(ProductVersion);PublishDir=$(PublishDir);IconSource=$(MSBuildProjectDirectory)\..\Assets\FloatingStockTicker.ico</DefineConstants>
+  </PropertyGroup>
+</Project>

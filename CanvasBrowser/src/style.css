@@ -1,0 +1,5900 @@
+/**
+ * CanvasBrowser visual direction.
+ *
+ * The world is the layout engine: horizontal position is time, width is
+ * uncertainty, and colour is truth. Deep warm graphite ground, bone text,
+ * electric mint for observed facts, amber for modeled ranges, slate for
+ * inferred assumptions, hatch for the unknown. Red is reserved for tripwires.
+ */
+
+:root {
+  color-scheme: dark;
+
+  --ink-900: #0a0908;
+  --ink-800: #100e0c;
+  --ink-700: #171412;
+  --ink-600: #201b17;
+  --ink-500: #2b241e;
+
+  --bone: #f0e8dc;
+  --bone-dim: #b3a696;
+  --bone-faint: #7d7267;
+
+  --observed: #4ff0c0;
+  --modeled: #f2b35c;
+  --inferred: #8fa6b8;
+  --unknown: #6d6459;
+  --tripwire: #ff5d4a;
+
+  --line: rgba(240, 232, 220, 0.12);
+  --line-strong: rgba(240, 232, 220, 0.24);
+
+  --font-display: "Segoe UI Variable Display", "Segoe UI", ui-sans-serif, system-ui, -apple-system, sans-serif;
+  --font-body: "Segoe UI Variable Text", "Segoe UI", ui-sans-serif, system-ui, -apple-system, sans-serif;
+  --font-meta: ui-monospace, "Cascadia Mono", "SF Mono", Menlo, monospace;
+
+  --shell-pad: clamp(1.1rem, 3.4vw, 3.4rem);
+  --radius: 3px;
+  --tap: 44px;
+}
+
+:root[data-contrast='high'] {
+  --bone: #ffffff;
+  --bone-dim: #ded4c6;
+  --bone-faint: #b6aa9c;
+  --line: rgba(255, 255, 255, 0.28);
+  --line-strong: rgba(255, 255, 255, 0.5);
+}
+
+:root[data-text-size='large'] {
+  font-size: 118%;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+  padding: 0;
+  min-height: 100%;
+  overflow-x: hidden;
+}
+
+body {
+  background:
+    radial-gradient(120% 80% at 12% 4%, rgba(79, 240, 192, 0.07), transparent 58%),
+    radial-gradient(90% 70% at 88% 100%, rgba(242, 179, 92, 0.07), transparent 60%),
+    linear-gradient(180deg, #0b0a09 0%, #0a0908 46%, #070605 100%);
+  color: var(--bone);
+  font-family: var(--font-body);
+  font-size: 16px;
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+}
+
+#app {
+  min-height: 100vh;
+  min-height: 100dvh;
+}
+
+/* ------------------------------------------------------------- GPU layer */
+
+/*
+ * The visual engine's canvases are ground, never content. Each one sits at
+ * `z-index: 0` inside its own surface's stacking context, which puts it above
+ * that surface's painted background and below semantic elements promoted to
+ * the content plane. They are never hit-testable and never announced, and the paper
+ * envelope and the briefing ribbon live outside their clipping boxes entirely.
+ */
+.fx-canvas {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  display: block;
+  width: 100%;
+  height: 100%;
+  border: 0;
+  pointer-events: none;
+  user-select: none;
+  opacity: 0.9;
+}
+
+/* Home's latent worlds are one continuous full-viewport field. */
+.home-stage > .fx-canvas {
+  position: fixed;
+}
+
+.home-stage > :not(.fx-canvas) {
+  position: relative;
+  z-index: 1;
+}
+
+.home-stage > .home-focus {
+  z-index: 2;
+}
+
+.home-stage > .home-ambient {
+  z-index: 0;
+}
+
+.world > :not(.fx-canvas),
+.field-stage > :not(.fx-canvas) {
+  z-index: 1;
+}
+
+/* High contrast keeps the atmosphere, but well under the type. */
+:root[data-contrast='high'] .fx-canvas {
+  opacity: 0.4;
+}
+
+button,
+input {
+  font: inherit;
+  color: inherit;
+}
+
+:focus-visible {
+  outline: 2px solid var(--observed);
+  outline-offset: 3px;
+}
+
+/* ---------------------------------------------------------------- shell */
+
+.shell {
+  min-height: 100vh;
+  min-height: 100dvh;
+  display: grid;
+  grid-template-rows: auto 1fr;
+  padding: clamp(0.85rem, 1.9vw, 1.6rem) var(--shell-pad) clamp(0.9rem, 2vw, 1.7rem);
+  gap: clamp(0.8rem, 1.7vw, 1.4rem);
+}
+
+.brand-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.brand {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.6rem;
+  font-family: var(--font-meta);
+  font-size: 0.68rem;
+  letter-spacing: 0.28em;
+  text-transform: uppercase;
+  color: var(--bone-dim);
+}
+
+.brand-mark {
+  width: 12px;
+  height: 12px;
+  border: 1px solid var(--observed);
+  transform: rotate(45deg);
+  box-shadow: 0 0 12px rgba(79, 240, 192, 0.45);
+}
+
+button.brand {
+  background: transparent;
+  border: 0;
+  cursor: pointer;
+}
+
+button.brand:hover .brand-word,
+button.brand:focus-visible .brand-word {
+  color: var(--bone);
+}
+
+.brand-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.6rem;
+}
+
+.scenario-menu {
+  position: relative;
+  display: inline-flex;
+}
+
+.scenario-menu-button {
+  min-height: var(--tap);
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0 0.8rem;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: transparent;
+  color: var(--bone-dim);
+  font-family: var(--font-meta);
+  font-size: 0.7rem;
+  letter-spacing: 0.08em;
+  cursor: pointer;
+}
+
+.scenario-menu-button:hover,
+.scenario-menu-button[aria-expanded='true'] {
+  color: var(--bone);
+  border-color: var(--observed);
+}
+
+.scenario-menu-caret {
+  font-size: 0.7rem;
+  opacity: 0.7;
+}
+
+.scenario-menu-list {
+  position: absolute;
+  top: calc(100% + 8px);
+  right: 0;
+  z-index: 40;
+  width: min(21rem, 82vw);
+  max-height: min(62vh, 27rem);
+  overflow-y: auto;
+  padding: 0.4rem;
+  display: grid;
+  gap: 0.05rem;
+  background: var(--ink-800);
+  border: 1px solid var(--line);
+  border-radius: 0.7rem;
+  box-shadow: 0 18px 44px rgba(0, 0, 0, 0.55);
+}
+
+.scenario-menu-list[hidden] {
+  display: none;
+}
+
+.scenario-menu-group {
+  margin: 0.55rem 0.45rem 0.2rem;
+  font-family: var(--font-meta);
+  font-size: 0.6rem;
+  text-transform: uppercase;
+  letter-spacing: 0.14em;
+  opacity: 0.5;
+}
+
+.scenario-menu-group:first-child {
+  margin-top: 0.25rem;
+}
+
+.scenario-menu-item {
+  display: grid;
+  gap: 0.1rem;
+  text-align: left;
+  padding: 0.4rem 0.5rem;
+  border: 0;
+  border-radius: 0.45rem;
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+}
+
+.scenario-menu-item:hover,
+.scenario-menu-item:focus-visible {
+  background: color-mix(in srgb, currentColor 10%, transparent);
+}
+
+.scenario-menu-item-label {
+  font-size: 0.82rem;
+  font-weight: 600;
+}
+
+.scenario-menu-item-prompt {
+  font-size: 0.72rem;
+  opacity: 0.6;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.ghost-button,
+.primary-button,
+.link-button,
+.choice,
+.place,
+.hypothesis,
+.assumption,
+.prompt-submit {
+  min-height: var(--tap);
+  cursor: pointer;
+  border-radius: var(--radius);
+  transition: border-color 0.18s ease, color 0.18s ease, background 0.18s ease;
+}
+
+.ghost-button {
+  padding: 0 1rem;
+  border: 1px solid var(--line);
+  background: transparent;
+  color: var(--bone-dim);
+  font-family: var(--font-meta);
+  font-size: 0.7rem;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+}
+
+.ghost-button:hover,
+.ghost-button:focus-visible {
+  color: var(--bone);
+  border-color: var(--line-strong);
+}
+
+.primary-button {
+  padding: 0 1.3rem;
+  border: 1px solid rgba(79, 240, 192, 0.5);
+  background: rgba(79, 240, 192, 0.1);
+  color: var(--observed);
+  font-family: var(--font-meta);
+  font-size: 0.72rem;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+}
+
+.primary-button:hover,
+.primary-button:focus-visible {
+  background: rgba(79, 240, 192, 0.18);
+}
+
+.link-button {
+  padding: 0 0.4rem;
+  border: 0;
+  background: none;
+  color: var(--bone-faint);
+  font-size: 0.82rem;
+  text-decoration: underline;
+  text-underline-offset: 4px;
+}
+
+.link-button[disabled] {
+  opacity: 0.45;
+  cursor: default;
+}
+
+.muted {
+  color: var(--bone-faint);
+  font-size: 0.8rem;
+}
+
+/* ----------------------------------------------------------------- home */
+
+/*
+ * Home is one prompt, but never a search box on black. Two authored world
+ * seeds — a Time Terrain echo and a Signal Field reach diagram — orbit the
+ * prompt at low contrast. They are inert scenery: no hit target, no aria, no
+ * template card. The focus hierarchy is unchanged: moment, question, prompt.
+ */
+.home-stage {
+  position: relative;
+  display: grid;
+  align-content: center;
+  justify-items: center;
+  gap: clamp(1.4rem, 3vw, 2.6rem);
+  text-align: center;
+  padding-bottom: 8vh;
+  isolation: isolate;
+}
+
+.home-focus {
+  position: relative;
+  z-index: 2;
+  display: grid;
+  justify-items: center;
+  gap: clamp(1rem, 2.4vw, 1.9rem);
+  width: 100%;
+}
+
+.home-ambient {
+  position: absolute;
+  inset: -6vh -2vw;
+  z-index: 0;
+  pointer-events: none;
+  overflow: hidden;
+}
+
+.world-seed {
+  position: absolute;
+  top: 50%;
+  width: min(30vw, 420px);
+  height: min(34vh, 320px);
+  transform: translateY(-50%);
+  opacity: 0.5;
+}
+
+.world-seed--terrain {
+  left: max(1vw, calc(50% - 44rem));
+}
+
+.world-seed--field {
+  right: max(1vw, calc(50% - 44rem));
+}
+
+.seed-name {
+  position: absolute;
+  top: -1.6rem;
+  font-family: var(--font-meta);
+  font-size: 0.56rem;
+  letter-spacing: 0.32em;
+  text-transform: uppercase;
+  color: rgba(240, 232, 220, 0.22);
+}
+
+.world-seed--field .seed-name {
+  right: 0;
+}
+
+.seed-axis {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 0;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, rgba(240, 232, 220, 0.16), transparent);
+}
+
+.seed-tick {
+  position: absolute;
+  left: var(--start);
+  top: 0;
+  width: 1px;
+  height: 6px;
+  background: rgba(240, 232, 220, 0.18);
+}
+
+.seed-lanes {
+  position: absolute;
+  inset: 1.4rem 0 0;
+  display: grid;
+  align-content: start;
+  gap: clamp(0.5rem, 1.6vh, 1.1rem);
+}
+
+.seed-lane {
+  position: relative;
+  display: block;
+  height: 10px;
+  border-bottom: 1px solid rgba(240, 232, 220, 0.05);
+}
+
+.seed-band {
+  position: absolute;
+  left: var(--start);
+  width: var(--span);
+  top: 1px;
+  bottom: 2px;
+  border-left: 2px solid rgba(79, 240, 192, 0.32);
+  background: linear-gradient(90deg, rgba(79, 240, 192, 0.16), rgba(242, 179, 92, 0.05));
+}
+
+.seed-lane:nth-child(3) .seed-band {
+  border-left-color: rgba(242, 179, 92, 0.36);
+  background: linear-gradient(90deg, rgba(242, 179, 92, 0.16), transparent);
+}
+
+.seed-lane:nth-child(4) .seed-band,
+.seed-lane:nth-child(5) .seed-band {
+  border-left-color: rgba(143, 166, 184, 0.34);
+  background: repeating-linear-gradient(-45deg, rgba(240, 232, 220, 0.09) 0 2px, transparent 2px 8px);
+}
+
+.seed-rings {
+  position: absolute;
+  inset: 0;
+}
+
+.seed-map {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  border: 1px solid rgba(93, 245, 233, 0.08);
+  background: linear-gradient(135deg, rgba(15, 79, 81, 0.08), transparent 72%);
+}
+
+.seed-grid-line {
+  position: absolute;
+  display: block;
+  background: rgba(93, 245, 233, 0.1);
+}
+
+.seed-grid-line--vertical {
+  left: calc(10% + var(--slot) * 10%);
+  top: -10%;
+  width: 1px;
+  height: 120%;
+  transform: rotate(7deg);
+}
+
+.seed-grid-line--horizontal {
+  left: -10%;
+  top: calc(8% + var(--slot) * 10%);
+  width: 120%;
+  height: 1px;
+  transform: rotate(-2deg);
+}
+
+.seed-ring {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: var(--size);
+  height: var(--size);
+  border: 1px solid rgba(160, 200, 255, 0.2);
+  border-radius: 50%;
+  transform: translate(-50%, -50%);
+}
+
+.seed-ring:first-child {
+  border-color: rgba(190, 225, 255, 0.34);
+}
+
+.seed-center {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: rgba(191, 228, 255, 0.65);
+  box-shadow: 0 0 18px rgba(120, 180, 255, 0.5);
+  transform: translate(-50%, -50%);
+}
+
+.seed-signal {
+  position: absolute;
+  left: var(--x);
+  top: var(--y);
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: currentColor;
+  box-shadow: 0 0 12px currentColor;
+  transform: translate(-50%, -50%);
+  color: var(--layer-local);
+}
+
+.seed-signal[data-layer='markets'] {
+  color: var(--layer-markets);
+}
+.seed-signal[data-layer='weather'] {
+  color: var(--layer-weather);
+}
+.seed-signal[data-layer='mobility'] {
+  color: var(--layer-mobility);
+}
+
+.home-moment {
+  margin: 0;
+  display: inline-flex;
+  align-items: baseline;
+  gap: 0.5rem;
+  font-family: var(--font-meta);
+  font-size: 0.64rem;
+  letter-spacing: 0.24em;
+  text-transform: uppercase;
+  color: var(--bone-faint);
+}
+
+.home-clock {
+  color: var(--bone-dim);
+}
+
+.home-place--action {
+  min-height: 2rem;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--mint);
+  font: inherit;
+  letter-spacing: inherit;
+  text-transform: inherit;
+  text-decoration: underline;
+  text-underline-offset: 4px;
+  cursor: pointer;
+}
+
+@media (max-width: 1100px) {
+  .home-ambient {
+    opacity: 0.55;
+  }
+
+  .world-seed {
+    width: 40vw;
+  }
+}
+
+@media (max-width: 860px) {
+  .world-seed--terrain {
+    left: -12vw;
+  }
+
+  .world-seed--field {
+    right: -12vw;
+  }
+
+  .home-ambient {
+    opacity: 0.35;
+  }
+}
+
+.display-question {
+  margin: 0;
+  max-width: 22ch;
+  font-family: var(--font-display);
+  font-weight: 300;
+  font-size: clamp(2.1rem, 6.2vw, 4.6rem);
+  line-height: 1.02;
+  letter-spacing: -0.035em;
+  color: var(--bone);
+  text-wrap: balance;
+}
+
+.prompt-form {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  width: min(760px, 100%);
+  padding: 0.4rem 0.4rem 0.4rem 1.1rem;
+  border: 1px solid var(--line);
+  border-radius: 2px;
+  background: linear-gradient(180deg, rgba(32, 27, 23, 0.82), rgba(16, 14, 12, 0.72));
+  box-shadow: 0 24px 60px rgba(0, 0, 0, 0.45);
+}
+
+.prompt-input {
+  flex: 1 1 auto;
+  min-width: 0;
+  min-height: 52px;
+  border: 0;
+  background: transparent;
+  color: var(--bone);
+  font-family: var(--font-display);
+  font-size: clamp(1rem, 1.8vw, 1.3rem);
+  letter-spacing: -0.01em;
+}
+
+.prompt-input::placeholder {
+  color: var(--bone-faint);
+}
+
+.prompt-input:focus {
+  outline: none;
+}
+
+.prompt-submit {
+  flex: 0 0 auto;
+  padding: 0 1.5rem;
+  border: 1px solid rgba(79, 240, 192, 0.45);
+  background: rgba(79, 240, 192, 0.12);
+  color: var(--observed);
+  font-family: var(--font-meta);
+  font-size: 0.72rem;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+}
+
+.prompt-submit[disabled] {
+  opacity: 0.6;
+  cursor: progress;
+}
+
+.hints {
+  display: grid;
+  justify-items: center;
+  gap: 0.1rem;
+}
+
+.hint {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 0.7rem;
+  padding: 0.4rem 0.2rem;
+  border: 0;
+  background: none;
+  color: var(--bone-faint);
+  cursor: pointer;
+}
+
+.hint-label {
+  font-family: var(--font-meta);
+  font-size: 0.62rem;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+}
+
+.hint-text {
+  font-size: 0.92rem;
+  text-decoration: underline;
+  text-underline-offset: 5px;
+  text-decoration-color: var(--line-strong);
+}
+
+.hint:hover .hint-text {
+  color: var(--bone-dim);
+}
+
+.inline-error {
+  margin: 0;
+  color: var(--tripwire);
+  font-size: 0.86rem;
+}
+
+/* -------------------------------------------------------------- literal */
+
+.literal-stage {
+  display: grid;
+  align-content: center;
+  justify-items: start;
+  gap: clamp(1.2rem, 2.6vw, 2.2rem);
+  width: min(1000px, 100%);
+  margin: 0 auto;
+  padding-bottom: 6vh;
+}
+
+.literal-question {
+  margin: 0 0 0.9rem;
+  font-family: var(--font-meta);
+  font-size: 0.68rem;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: var(--bone-faint);
+}
+
+.literal {
+  width: 100%;
+  padding-left: clamp(0.8rem, 2vw, 1.6rem);
+  border-left: 2px solid var(--observed);
+}
+
+.literal--unavailable {
+  border-left-color: var(--unknown);
+}
+
+.literal-answer-text {
+  margin: 0;
+  font-family: var(--font-display);
+  font-weight: 300;
+  font-size: clamp(1.35rem, 2.9vw, 2.35rem);
+  line-height: 1.24;
+  letter-spacing: -0.02em;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.answer-link {
+  color: var(--observed);
+  text-decoration: underline;
+  text-underline-offset: 5px;
+  text-decoration-color: rgba(79, 240, 192, 0.45);
+}
+
+.freshness,
+.literal-citation-count {
+  margin: 0.9rem 0 0;
+  font-family: var(--font-meta);
+  font-size: 0.68rem;
+  letter-spacing: 0.1em;
+  color: var(--bone-faint);
+}
+
+.offer {
+  width: 100%;
+  padding: clamp(1rem, 2vw, 1.5rem);
+  border: 1px solid var(--line);
+  background: rgba(23, 20, 18, 0.6);
+}
+
+.offer-question {
+  margin: 0 0 1rem;
+  font-family: var(--font-display);
+  font-size: clamp(1.05rem, 2vw, 1.45rem);
+  font-weight: 400;
+  letter-spacing: -0.015em;
+}
+
+.offer-choices {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.7rem;
+}
+
+.hypothesis {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.6rem;
+  padding: 0 1.2rem;
+  border: 1px solid var(--line-strong);
+  background: rgba(43, 36, 30, 0.5);
+  color: var(--bone);
+  font-size: 0.95rem;
+}
+
+.hypothesis:hover,
+.hypothesis:focus-visible {
+  border-color: var(--observed);
+  background: rgba(79, 240, 192, 0.1);
+}
+
+.hypothesis--limited {
+  color: var(--bone-dim);
+}
+
+.hypothesis-note {
+  font-family: var(--font-meta);
+  font-size: 0.6rem;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--bone-faint);
+}
+
+.offer-note {
+  margin: 0.9rem 0 0;
+  color: var(--bone-faint);
+  font-size: 0.82rem;
+}
+
+.literal-controls {
+  display: flex;
+  align-items: center;
+  gap: 0.8rem;
+}
+
+/* -------------------------------------------- recognized scenario strip */
+
+.scenario-strip {
+  margin-top: 1rem;
+  padding: 0.85rem 1rem;
+  border: 1px solid color-mix(in srgb, currentColor 14%, transparent);
+  border-radius: 0.75rem;
+  background: color-mix(in srgb, currentColor 4%, transparent);
+  display: grid;
+  gap: 0.45rem;
+}
+
+.scenario-strip-head {
+  display: flex;
+  align-items: baseline;
+  gap: 0.6rem;
+  flex-wrap: wrap;
+}
+
+.scenario-tag {
+  font-weight: 600;
+  letter-spacing: 0.01em;
+}
+
+.scenario-mode {
+  font-size: 0.78rem;
+  opacity: 0.62;
+  text-transform: lowercase;
+}
+
+.scenario-goal {
+  margin: 0;
+  opacity: 0.9;
+}
+
+.scenario-deserved {
+  margin: 0;
+  font-size: 0.85rem;
+  opacity: 0.75;
+  display: flex;
+  gap: 0.5rem;
+  align-items: baseline;
+}
+
+.scenario-deserved-tag {
+  font-size: 0.68rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  padding: 0.05rem 0.4rem;
+  border-radius: 0.35rem;
+  border: 1px solid color-mix(in srgb, currentColor 22%, transparent);
+  opacity: 0.8;
+}
+
+.scenario-handoffs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin-top: 0.15rem;
+}
+
+.scenario-handoff {
+  display: grid;
+  gap: 0.1rem;
+  padding: 0.4rem 0.6rem;
+  border-radius: 0.5rem;
+  border: 1px solid color-mix(in srgb, currentColor 18%, transparent);
+  text-decoration: none;
+  color: inherit;
+}
+
+.scenario-handoff--inert {
+  opacity: 0.75;
+}
+
+.scenario-handoff-label {
+  font-weight: 600;
+  font-size: 0.85rem;
+}
+
+.scenario-handoff-action {
+  font-size: 0.76rem;
+  opacity: 0.7;
+}
+
+/* --------------------------------------------- dev-panel example launcher */
+
+.dev-examples {
+  margin-bottom: 0.8rem;
+}
+
+.dev-examples-title {
+  margin: 0 0 0.5rem;
+  font-size: 0.78rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  opacity: 0.7;
+}
+
+.dev-example-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(11rem, 1fr));
+  gap: 0.4rem;
+}
+
+.dev-example {
+  display: grid;
+  gap: 0.15rem;
+  text-align: left;
+  padding: 0.45rem 0.55rem;
+  border-radius: 0.5rem;
+  border: 1px solid color-mix(in srgb, currentColor 16%, transparent);
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+}
+
+.dev-example:hover {
+  background: color-mix(in srgb, currentColor 8%, transparent);
+}
+
+.dev-example-label {
+  font-weight: 600;
+  font-size: 0.82rem;
+}
+
+.dev-example-prompt {
+  font-size: 0.74rem;
+  opacity: 0.7;
+}
+
+/* ------------------------------------------------------ decision surface */
+
+.decision-stage {
+  width: min(760px, 100%);
+  margin: 0 auto;
+  padding: 1.5rem 0 2rem;
+  display: grid;
+  gap: 1.2rem;
+}
+
+.decision-direction {
+  display: flex;
+  align-items: baseline;
+  gap: 0.5rem;
+  margin: 0 0 0.35rem;
+  color: var(--bone-dim);
+  font-size: 0.95rem;
+}
+
+.decision-direction-tag,
+.decision-alt-tag {
+  font-family: var(--font-meta);
+  font-size: 0.62rem;
+  text-transform: uppercase;
+  letter-spacing: 0.14em;
+  opacity: 0.6;
+}
+
+.decision-headline {
+  margin: 0;
+  font-size: clamp(1.4rem, 3.4vw, 2rem);
+  font-weight: 620;
+  letter-spacing: -0.02em;
+  line-height: 1.15;
+}
+
+.decision-evidence {
+  margin: 0.5rem 0 0;
+  color: var(--bone-dim);
+  font-size: 0.82rem;
+}
+
+.decision-forces {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(15rem, 1fr));
+  gap: 0.7rem;
+}
+
+.decision-force {
+  padding: 0.75rem 0.85rem;
+  border: 1px solid color-mix(in srgb, currentColor 12%, transparent);
+  border-radius: 0.7rem;
+  background: color-mix(in srgb, currentColor 3%, transparent);
+  display: grid;
+  gap: 0.25rem;
+}
+
+.decision-force-label {
+  margin: 0;
+  font-family: var(--font-meta);
+  font-size: 0.64rem;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  opacity: 0.6;
+}
+
+.decision-force-value {
+  margin: 0;
+  font-size: 0.98rem;
+  line-height: 1.35;
+}
+
+.decision-force-note {
+  margin: 0;
+  font-size: 0.8rem;
+  opacity: 0.65;
+}
+
+.decision-assembling {
+  color: var(--bone-dim);
+  font-size: 0.95rem;
+}
+
+.decision-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.6rem;
+  align-items: center;
+}
+
+.decision-action {
+  min-height: var(--tap);
+  padding: 0 1.1rem;
+  border: 1px solid var(--observed);
+  border-radius: var(--radius);
+  background: color-mix(in srgb, var(--observed) 14%, transparent);
+  color: var(--bone);
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.decision-alternative {
+  min-height: var(--tap);
+  display: inline-flex;
+  align-items: baseline;
+  gap: 0.45rem;
+  padding: 0 0.9rem;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: transparent;
+  color: var(--bone-dim);
+  cursor: pointer;
+}
+
+.decision-alternative:hover {
+  color: var(--bone);
+  border-color: var(--observed);
+}
+
+.decision-refine {
+  display: flex;
+  gap: 0.5rem;
+  margin-top: 0.3rem;
+}
+
+.decision-refine-input {
+  flex: 1;
+  min-height: var(--tap);
+  padding: 0 0.85rem;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: color-mix(in srgb, currentColor 3%, transparent);
+  color: var(--bone);
+  font: inherit;
+}
+
+.decision-refine-submit {
+  min-height: var(--tap);
+  padding: 0 1rem;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: transparent;
+  color: var(--bone-dim);
+  cursor: pointer;
+}
+
+.decision-refine-submit:hover {
+  color: var(--bone);
+}
+
+.decision-controls {
+  margin-top: 0.2rem;
+}
+
+/* --------------------------------------------------- compare surface */
+
+.compare-stage {
+  width: min(1000px, 100%);
+  margin: 0 auto;
+  padding: 1.2rem 0 2rem;
+  display: grid;
+  gap: 1rem;
+}
+
+.compare-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(14rem, 1fr));
+  gap: 0.8rem;
+}
+
+.compare-option {
+  border: 1px solid var(--line);
+  border-radius: 0.7rem;
+  padding: 0.85rem;
+  display: grid;
+  gap: 0.5rem;
+  align-content: start;
+}
+
+.compare-option--best {
+  border-color: color-mix(in srgb, var(--observed) 55%, var(--line));
+  background: color-mix(in srgb, var(--observed) 7%, transparent);
+}
+
+.compare-option-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.5rem;
+}
+
+.compare-option-name {
+  font-weight: 650;
+  font-size: 1rem;
+}
+
+.compare-option-badge {
+  font-family: var(--font-meta);
+  font-size: 0.58rem;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  padding: 0.1rem 0.4rem;
+  border-radius: 0.35rem;
+  background: color-mix(in srgb, var(--observed) 24%, transparent);
+  color: var(--bone);
+}
+
+.compare-option-meta {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+}
+
+.compare-option-price {
+  font-weight: 600;
+  color: #ffd166;
+}
+
+.compare-rating {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+}
+
+.compare-stars {
+  display: inline-flex;
+  gap: 0.12rem;
+}
+
+.compare-star {
+  width: 0.6rem;
+  height: 0.6rem;
+  border-radius: 50%;
+  border: 1px solid color-mix(in srgb, var(--bone) 30%, transparent);
+}
+
+.compare-star--on {
+  background: var(--observed);
+  border-color: var(--observed);
+}
+
+.compare-rating-num {
+  font-size: 0.78rem;
+  color: var(--bone-dim);
+}
+
+.compare-pros,
+.compare-cons {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: grid;
+  gap: 0.2rem;
+}
+
+.compare-pros li,
+.compare-cons li {
+  display: flex;
+  gap: 0.4rem;
+  font-size: 0.82rem;
+  align-items: baseline;
+}
+
+.compare-mark {
+  font-weight: 700;
+}
+
+.compare-mark--pro {
+  color: var(--observed);
+}
+
+.compare-mark--con {
+  color: #ff9b9b;
+}
+
+.compare-verdict {
+  margin: 0;
+  display: flex;
+  gap: 0.5rem;
+  align-items: baseline;
+}
+
+.compare-verdict-tag {
+  font-family: var(--font-meta);
+  font-size: 0.62rem;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  opacity: 0.6;
+}
+
+/* ----------------------------------------------------- triage surface */
+
+.triage-stage {
+  width: min(760px, 100%);
+  margin: 0 auto;
+  padding: 1.2rem 0 2rem;
+  display: grid;
+  gap: 1rem;
+}
+
+.triage-banner {
+  border-radius: 0.8rem;
+  padding: 1rem 1.1rem;
+  border: 1px solid var(--line);
+}
+
+.triage-banner--emergency {
+  background: rgba(200, 40, 40, 0.14);
+  border-color: #ff6b6b;
+}
+
+.triage-banner--urgent {
+  background: rgba(255, 180, 60, 0.12);
+  border-color: #ffcf6b;
+}
+
+.triage-banner--routine {
+  background: color-mix(in srgb, var(--observed) 10%, transparent);
+  border-color: var(--observed);
+}
+
+.triage-severity {
+  font-family: var(--font-meta);
+  font-size: 0.7rem;
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+}
+
+.triage-banner--emergency .triage-severity {
+  color: #ff8a8a;
+}
+
+.triage-banner--urgent .triage-severity {
+  color: #ffcf6b;
+}
+
+.triage-banner--routine .triage-severity {
+  color: #bff7db;
+}
+
+.triage-headline {
+  margin: 0.3rem 0 0;
+  font-size: 1.2rem;
+  font-weight: 620;
+}
+
+.triage-action-row {
+  display: flex;
+}
+
+.triage-emergency {
+  min-height: var(--tap);
+  padding: 0 1.2rem;
+  border: 1px solid #ff6b6b;
+  border-radius: var(--radius);
+  background: rgba(200, 40, 40, 0.2);
+  color: #ffdede;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.triage-emergency:hover {
+  background: rgba(200, 40, 40, 0.32);
+}
+
+.triage-body {
+  display: grid;
+  gap: 0.9rem;
+}
+
+.triage-block-title {
+  margin: 0 0 0.3rem;
+  font-size: 0.95rem;
+}
+
+.triage-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: grid;
+  gap: 0.3rem;
+}
+
+.triage-list li {
+  display: flex;
+  gap: 0.5rem;
+  align-items: baseline;
+}
+
+.triage-mark {
+  width: 0.5rem;
+  height: 0.5rem;
+  border-radius: 50%;
+  margin-top: 0.35rem;
+  flex: none;
+}
+
+.triage-mark--now {
+  background: var(--observed);
+}
+
+.triage-mark--flag {
+  background: #ff6b6b;
+}
+
+.triage-mark--cause {
+  background: color-mix(in srgb, var(--bone) 40%, transparent);
+}
+
+.triage-causes {
+  opacity: 0.85;
+}
+
+.triage-disclaimer {
+  font-size: 0.76rem;
+  opacity: 0.6;
+  margin: 0.2rem 0 0;
+}
+
+/* -------------------------------------------------------- place world */
+
+.place-stage {
+  width: min(1000px, 100%);
+  margin: 0 auto;
+  padding: 1.1rem 0 2rem;
+  display: grid;
+  gap: 0.9rem;
+}
+
+.place-body {
+  display: grid;
+  grid-template-columns: minmax(0, 1.15fr) minmax(0, 1fr);
+  gap: 1rem;
+  align-items: start;
+}
+
+.place-map-panel {
+  position: relative;
+  border: 1px solid var(--line);
+  border-radius: 0.8rem;
+  overflow: hidden;
+  background: #07141a;
+}
+
+.place-plot {
+  position: relative;
+  width: 100%;
+  aspect-ratio: 20 / 9;
+  overflow: hidden;
+}
+
+.place-map-base {
+  position: absolute;
+  left: 0;
+  top: 0;
+  display: block;
+  border: 0;
+  transform-origin: top left;
+  transform: scale(var(--place-map-scale-x, 1), var(--place-map-scale-y, 1));
+  filter: saturate(0.85) brightness(0.82);
+  pointer-events: none;
+  z-index: 0;
+}
+
+.place-lines {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+  z-index: 1;
+}
+
+.place-route {
+  stroke: rgba(255, 255, 255, 0.45);
+  stroke-width: 0.5;
+  stroke-dasharray: 1.6 1.2;
+  vector-effect: non-scaling-stroke;
+}
+
+.place-route--best {
+  stroke: var(--observed);
+  stroke-width: 1;
+  stroke-dasharray: none;
+}
+
+.place-pin,
+.place-anchor {
+  position: absolute;
+  left: var(--x, 50%);
+  top: var(--y, 50%);
+  transform: translate(-50%, -50%);
+  z-index: 3;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.15rem;
+  pointer-events: none;
+}
+
+.place-pin-dot {
+  width: 0.7rem;
+  height: 0.7rem;
+  border-radius: 50%;
+  background: rgba(240, 248, 244, 0.95);
+  border: 2px solid #06100c;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.6);
+}
+
+.place-pin--best .place-pin-dot {
+  width: 0.95rem;
+  height: 0.95rem;
+  background: var(--observed);
+  box-shadow: 0 0 10px rgba(79, 240, 192, 0.6);
+}
+
+.place-pin-tip {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  line-height: 1.05;
+  padding: 0.05rem 0.28rem;
+  border-radius: 0.25rem;
+  background: rgba(6, 16, 12, 0.72);
+}
+
+.place-pin-name {
+  font-size: 0.68rem;
+  font-weight: 700;
+  color: #eef7f2;
+}
+
+.place-pin--best .place-pin-name {
+  color: #bff7db;
+}
+
+.place-pin-min {
+  font-size: 0.6rem;
+  color: #cfe8df;
+  font-family: var(--font-meta);
+}
+
+.place-anchor-dot {
+  width: 0.8rem;
+  height: 0.8rem;
+  background: #ffd166;
+  border: 2px solid #06100c;
+  transform: rotate(45deg);
+  box-shadow: 0 0 8px rgba(255, 209, 102, 0.6);
+}
+
+.place-anchor-name {
+  font-size: 0.64rem;
+  font-weight: 700;
+  color: #ffd166;
+  font-family: var(--font-meta);
+  padding: 0.05rem 0.28rem;
+  border-radius: 0.25rem;
+  background: rgba(6, 16, 12, 0.72);
+}
+
+.place-openmap {
+  position: absolute;
+  right: 0.5rem;
+  bottom: 0.5rem;
+  z-index: 4;
+  padding: 0.3rem 0.6rem;
+  border: 1px solid color-mix(in srgb, var(--bone) 25%, transparent);
+  border-radius: 0.4rem;
+  background: rgba(6, 16, 12, 0.72);
+  color: var(--bone);
+  font-size: 0.72rem;
+  cursor: pointer;
+}
+
+.place-openmap:hover {
+  border-color: var(--observed);
+}
+
+.place-map-tag {
+  position: absolute;
+  left: 0.6rem;
+  bottom: 0.5rem;
+  font-family: var(--font-meta);
+  font-size: 0.58rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: color-mix(in srgb, var(--bone) 45%, transparent);
+}
+
+.place-anchor-picker {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+}
+
+.place-anchor-picker-label {
+  font-size: 0.72rem;
+  color: var(--bone-dim);
+}
+
+.place-anchor-chip {
+  min-height: 2rem;
+  padding: 0 0.7rem;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: transparent;
+  color: var(--bone-dim);
+  font-size: 0.74rem;
+  cursor: pointer;
+}
+
+.place-anchor-chip--on {
+  border-color: #ffd166;
+  color: #ffd166;
+}
+
+.place-rows {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(15rem, 1fr));
+  gap: 0.5rem;
+}
+
+.place-controls {
+  position: absolute;
+  top: 0.5rem;
+  right: 0.5rem;
+  z-index: 5;
+  display: grid;
+  grid-template-columns: repeat(2, 1.9rem);
+  gap: 0.25rem;
+}
+
+.place-ctrl {
+  width: 1.9rem;
+  height: 1.9rem;
+  display: grid;
+  place-items: center;
+  border: 1px solid color-mix(in srgb, var(--bone) 25%, transparent);
+  border-radius: 0.4rem;
+  background: rgba(6, 16, 12, 0.78);
+  color: var(--bone);
+  font-size: 0.9rem;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.place-ctrl:hover {
+  border-color: var(--observed);
+  color: #bff7db;
+}
+
+.place-ctrl[data-node='place-ctrl-recenter'] {
+  grid-column: span 2;
+  width: auto;
+}
+
+.place-note {
+  margin: 0.1rem 0 0;
+  padding: 0.5rem 0.7rem;
+  border: 1px solid color-mix(in srgb, var(--observed) 35%, var(--line));
+  border-radius: 0.5rem;
+  background: color-mix(in srgb, var(--observed) 6%, transparent);
+  color: var(--bone);
+  font-size: 0.82rem;
+}
+
+.place-row {
+  border: 1px solid var(--line);
+  border-radius: 0.7rem;
+  padding: 0.6rem 0.75rem;
+  display: grid;
+  gap: 0.35rem;
+}
+
+.place-row--best {
+  border-color: color-mix(in srgb, var(--observed) 55%, var(--line));
+  background: color-mix(in srgb, var(--observed) 6%, transparent);
+}
+
+.place-row-head {
+  display: flex;
+  align-items: baseline;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+
+.place-row-name {
+  font-weight: 650;
+}
+
+.place-row-badge {
+  font-family: var(--font-meta);
+  font-size: 0.58rem;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  padding: 0.1rem 0.4rem;
+  border-radius: 0.35rem;
+  background: color-mix(in srgb, var(--observed) 22%, transparent);
+  color: var(--bone);
+}
+
+.place-row-vibe {
+  font-size: 0.74rem;
+  color: var(--bone-dim);
+}
+
+.place-metric {
+  display: grid;
+  grid-template-columns: 4.6rem minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.place-metric-label {
+  font-size: 0.66rem;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--bone-dim);
+}
+
+.place-metric-val {
+  font-size: 0.78rem;
+  color: var(--bone);
+  white-space: nowrap;
+}
+
+.meter {
+  display: block;
+  height: 0.5rem;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--bone) 8%, transparent);
+  overflow: hidden;
+}
+
+.meter-fill {
+  display: block;
+  height: 100%;
+  border-radius: 999px;
+  background: var(--bone-dim);
+}
+
+.meter-fill--rent {
+  background: #ffd166;
+}
+
+.meter-fill--commute {
+  background: #6ee7f5;
+}
+
+.school-dots {
+  display: inline-flex;
+  gap: 0.2rem;
+}
+
+.school-dot {
+  width: 0.5rem;
+  height: 0.5rem;
+  border-radius: 50%;
+  border: 1px solid color-mix(in srgb, var(--bone) 30%, transparent);
+}
+
+.school-dot--on {
+  background: var(--observed);
+  border-color: var(--observed);
+}
+
+@media (max-width: 760px) {
+  .place-body {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* -------------------------------------------------------------- terrain */
+
+.shell--world {
+  grid-template-rows: auto 1fr;
+}
+
+.terrain {
+  display: grid;
+  grid-template-rows: auto minmax(240px, 1fr) auto auto auto;
+  gap: clamp(0.6rem, 1.4vw, 1.1rem);
+  min-height: 0;
+}
+
+.terrain-head {
+  display: grid;
+  gap: 0.6rem;
+}
+
+.situation {
+  margin: 0;
+  max-width: 90ch;
+  font-family: var(--font-display);
+  font-weight: 300;
+  font-size: clamp(1rem, 1.9vw, 1.4rem);
+  line-height: 1.45;
+  letter-spacing: -0.015em;
+  color: var(--bone);
+}
+
+.situation-flight {
+  color: var(--observed);
+}
+
+.assumption {
+  display: inline;
+  padding: 0.05em 0.45em;
+  border: 1px dashed rgba(143, 166, 184, 0.6);
+  background: rgba(143, 166, 184, 0.09);
+  color: var(--inferred);
+  font: inherit;
+  line-height: inherit;
+  min-height: 0;
+}
+
+.assumption:hover,
+.assumption:focus-visible {
+  border-style: solid;
+  color: var(--bone);
+}
+
+.sample-banner {
+  display: flex;
+  align-items: center;
+  gap: 0.7rem;
+  margin: 0;
+  color: var(--bone-dim);
+  font-size: 0.84rem;
+}
+
+.sample-tag {
+  padding: 0.15rem 0.5rem;
+  border: 1px solid rgba(242, 179, 92, 0.6);
+  background: rgba(242, 179, 92, 0.14);
+  color: var(--modeled);
+  font-family: var(--font-meta);
+  font-size: 0.6rem;
+  letter-spacing: 0.18em;
+}
+
+/* --------------------------------------------------- situation now line */
+
+/*
+ * One compact row, never a panel: phase, weather, traffic, and what the world
+ * is doing about it. It sits above the terrain and stays typographically
+ * secondary — the timetable below is still the dominant object.
+ */
+.situation-now {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.4rem 0.5rem;
+  margin: 0;
+  font-family: var(--font-meta);
+  font-size: 0.72rem;
+  letter-spacing: 0.04em;
+  color: var(--bone-dim);
+}
+
+.now-part {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+}
+
+.now-part--phase {
+  color: var(--observed);
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  font-size: 0.62rem;
+}
+
+.now-sep {
+  color: var(--bone-faint);
+}
+
+.now-part[data-kind='rain'],
+.now-part[data-kind='snow'] {
+  color: rgba(150, 200, 255, 0.92);
+}
+
+.now-part[data-kind='wind'] {
+  color: rgba(189, 220, 255, 0.92);
+}
+
+.now-part[data-level='heavy'],
+.now-part[data-level='severe'] {
+  color: var(--modeled);
+}
+
+.sample-tag--inline {
+  padding: 0.05rem 0.32rem;
+  font-size: 0.5rem;
+  letter-spacing: 0.14em;
+}
+
+/* The dial is the countdown as a shape: it drains as the next check nears. */
+.refresh-dial {
+  width: 11px;
+  height: 11px;
+  border-radius: 50%;
+  background: conic-gradient(
+    var(--observed) calc(var(--remaining, 0) * 1%),
+    rgba(143, 166, 184, 0.22) 0
+  );
+  box-shadow: 0 0 6px rgba(79, 240, 192, 0.35);
+}
+
+.now-part--refresh[data-urgency='stopped'] .refresh-dial {
+  background: rgba(143, 166, 184, 0.22);
+  box-shadow: none;
+}
+
+/*
+ * The dial drains at every cadence, because draining *is* the countdown. It
+ * only beats when the check is actually due — the cadence itself is words.
+ */
+.now-part--refresh[data-due='true'] .refresh-dial {
+  animation: refresh-watch 2.4s ease-in-out infinite;
+}
+
+@keyframes refresh-watch {
+  0%,
+  100% {
+    box-shadow: 0 0 4px rgba(79, 240, 192, 0.25);
+  }
+  50% {
+    box-shadow: 0 0 12px rgba(79, 240, 192, 0.75);
+  }
+}
+
+:root[data-motion='reduced'] .refresh-dial {
+  animation: none !important;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .refresh-dial {
+    animation: none !important;
+  }
+}
+
+/* ------------------------------------------------------------ the world */
+
+/*
+ * The world is terrain, not a project plan: no outer rectangle, no chip
+ * column, no cell borders. It bleeds into the page, and truth is carried by
+ * the material of each band plus one legend.
+ */
+.world {
+  position: relative;
+  min-height: 0;
+  --plot-pad: clamp(0.6rem, 1.6vw, 1.4rem);
+  --label-col: clamp(150px, 17vw, 230px);
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+  padding: 3.4rem var(--plot-pad) 1rem;
+  border: 0;
+  background:
+    radial-gradient(140% 90% at 50% 118%, rgba(79, 240, 192, 0.09), transparent 62%),
+    radial-gradient(120% 120% at 50% 50%, rgba(22, 19, 16, 0.92), rgba(10, 9, 8, 0) 78%);
+  overflow: hidden;
+  isolation: isolate;
+}
+
+.world::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background: linear-gradient(180deg, rgba(7, 6, 5, 0.55) 0%, transparent 16%, transparent 84%, rgba(7, 6, 5, 0.6) 100%);
+}
+
+.world-grain {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  opacity: 0.05;
+  pointer-events: none;
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.85' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+}
+
+/* ------------------------------------------------- weather & traffic layers */
+
+/*
+ * These are forces laid over the whole world, not cards beside it. Weather is
+ * an atmospheric wash whose streaks run along the wind bearing; traffic is a
+ * flow deformation confined to the user's own travel lane. Both sit under the
+ * semantic bands, and both carry exactly one compact label anchored where the
+ * force actually acts.
+ */
+.weather-layer {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  pointer-events: none;
+  opacity: calc(0.25 + var(--weather, 0) * 0.55);
+  background-image: repeating-linear-gradient(
+    var(--wind-angle, 0deg),
+    rgba(168, 208, 255, calc(0.05 + var(--wind, 0) * 0.12)) 0 1px,
+    transparent 1px calc(9px - var(--weather, 0) * 4px)
+  );
+  mask-image: linear-gradient(180deg, rgba(0, 0, 0, 0.95) 0%, rgba(0, 0, 0, 0.35) 55%, transparent 100%);
+}
+
+.weather-layer[data-kind='clear'] {
+  opacity: 0.12;
+}
+
+.weather-layer[data-kind='rain'],
+.weather-layer[data-kind='snow'] {
+  background-color: rgba(80, 130, 190, 0.05);
+}
+
+.weather-layer[data-kind='wind'] {
+  background-color: rgba(150, 190, 240, 0.04);
+}
+
+.traffic-layer {
+  position: absolute;
+  left: calc(var(--plot-pad) + var(--label-col));
+  right: var(--plot-pad);
+  bottom: 1.8rem;
+  height: 4.4rem;
+  z-index: 1;
+  pointer-events: none;
+  opacity: calc(0.30 + var(--load, 0) * 0.55);
+  background-image: repeating-linear-gradient(
+    100deg,
+    rgba(242, 179, 92, calc(0.10 + var(--load, 0) * 0.35)) 0 2px,
+    transparent 2px calc(20px - var(--load, 0) * 13px)
+  );
+  mask-image: linear-gradient(
+    90deg,
+    transparent 0%,
+    rgba(0, 0, 0, 1) var(--start, 0%),
+    rgba(0, 0, 0, 1) calc(var(--start, 0%) + var(--span, 100%)),
+    transparent calc(var(--start, 0%) + var(--span, 100%) + 4%)
+  );
+}
+
+.traffic-layer[data-trend='building'] {
+  background-color: rgba(242, 179, 92, 0.05);
+}
+
+/*
+ * A condition label is one line of type, anchored to where its force acts.
+ * It never becomes a card, and it never competes with the envelope.
+ */
+.condition-label {
+  position: absolute;
+  z-index: 5;
+  margin: 0;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  max-width: min(72ch, 68%);
+  font-family: var(--font-meta);
+  font-size: 0.6rem;
+  letter-spacing: 0.06em;
+  color: var(--bone-faint);
+  white-space: nowrap;
+  overflow: hidden;
+  pointer-events: none;
+}
+
+.condition-label--weather {
+  top: 2.05rem;
+  left: calc(var(--plot-pad) + var(--label-col));
+  color: rgba(168, 208, 255, 0.85);
+}
+
+.condition-label--traffic {
+  top: 38px;
+  left: var(--start, 0%);
+  color: rgba(242, 179, 92, 0.86);
+}
+
+/* ------------------------------------------------------ layer switches */
+
+.world-foot {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem 1rem;
+}
+
+.condition-switches {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.45rem;
+}
+
+.condition-switch {
+  padding: 0.2rem 0.6rem;
+  min-height: 0;
+  border: 1px solid rgba(143, 166, 184, 0.35);
+  background: transparent;
+  color: var(--bone-faint);
+  font-family: var(--font-meta);
+  font-size: 0.58rem;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+}
+
+.condition-switch[aria-pressed='true'] {
+  border-color: rgba(79, 240, 192, 0.5);
+  background: rgba(79, 240, 192, 0.1);
+  color: var(--bone);
+}
+
+.condition-switch-note,
+.motion-legend {
+  margin: 0;
+  font-family: var(--font-meta);
+  font-size: 0.56rem;
+  letter-spacing: 0.06em;
+  color: var(--bone-faint);
+}
+
+.motion-legend {
+  max-width: 68ch;
+}
+
+.axis {
+  position: absolute;
+  inset: 0.6rem var(--plot-pad) auto calc(var(--plot-pad) + var(--label-col));
+  height: 1.4rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.tick {
+  position: absolute;
+  left: var(--start);
+  top: 0;
+  transform: translateX(-50%);
+}
+
+.tick::after {
+  content: '';
+  position: absolute;
+  left: 50%;
+  top: 1.15rem;
+  width: 1px;
+  height: 0.4rem;
+  background: var(--line);
+}
+
+.tick-label {
+  font-family: var(--font-meta);
+  font-size: 0.62rem;
+  letter-spacing: 0.12em;
+  color: var(--bone-faint);
+}
+
+/* Overlay shares the plot's content width so `--start` means the same thing
+   for ticks, the NOW rule, markers, and every band. */
+.world-overlay {
+  position: absolute;
+  left: calc(var(--plot-pad) + var(--label-col));
+  right: var(--plot-pad);
+  top: 2.1rem;
+  bottom: 0.6rem;
+  z-index: 3;
+  pointer-events: none;
+}
+
+.now-rule {
+  position: absolute;
+  left: var(--start);
+  top: 0;
+  bottom: 0;
+  width: 1px;
+  background: linear-gradient(180deg, var(--bone-dim), rgba(240, 232, 220, 0.08));
+  pointer-events: none;
+}
+
+.now-flag,
+.now-time {
+  position: absolute;
+  left: 0.4rem;
+  font-family: var(--font-meta);
+  font-size: 0.6rem;
+  letter-spacing: 0.2em;
+  white-space: nowrap;
+}
+
+.now-flag {
+  top: -1.35rem;
+  padding: 0 0.25rem;
+  color: var(--bone);
+  background: rgba(10, 9, 8, 0.85);
+}
+
+.now-time {
+  bottom: -0.1rem;
+  color: var(--bone-faint);
+}
+
+.lane {
+  position: relative;
+  z-index: 2;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.lane--pipeline {
+  display: grid;
+  gap: 0.45rem;
+}
+
+.segment,
+.lane--you {
+  display: grid;
+  grid-template-columns: var(--label-col) 1fr;
+  align-items: center;
+  gap: 0.6rem;
+}
+
+.segment-info {
+  min-width: 0;
+  padding-right: 0.4rem;
+}
+
+.segment-label {
+  display: block;
+  font-family: var(--font-display);
+  font-size: 0.92rem;
+  line-height: 1.2;
+  letter-spacing: -0.01em;
+  color: var(--bone);
+}
+
+.segment-method {
+  display: block;
+  margin-top: 0.1rem;
+  font-size: 0.68rem;
+  line-height: 1.25;
+  color: var(--bone-faint);
+}
+
+.segment-track,
+.lane-track {
+  position: relative;
+  min-width: 0;
+  height: 46px;
+}
+
+.segment-band {
+  position: absolute;
+  left: var(--start);
+  width: var(--span);
+  top: 18px;
+  bottom: 4px;
+  border: 1px solid rgba(240, 232, 220, 0.13);
+  border-left: 2px solid var(--line-strong);
+}
+
+.segment[data-truth='observed'] .segment-band {
+  border-left-color: var(--observed);
+  background: linear-gradient(90deg, rgba(79, 240, 192, 0.34), rgba(79, 240, 192, 0.08));
+}
+
+.segment[data-truth='modeled'] .segment-band {
+  border-left-color: var(--modeled);
+  background: linear-gradient(90deg, rgba(242, 179, 92, 0.32), rgba(242, 179, 92, 0.07));
+}
+
+.segment[data-truth='inferred'] .segment-band {
+  border-left-color: var(--inferred);
+  background: linear-gradient(90deg, rgba(143, 166, 184, 0.32), rgba(143, 166, 184, 0.07));
+}
+
+.segment[data-truth='unknown'] .segment-band {
+  border-left-color: var(--unknown);
+}
+
+.segment[data-hatch='true'] .segment-band {
+  background-color: rgba(35, 30, 25, 0.55);
+  background-image: repeating-linear-gradient(-45deg, rgba(240, 232, 220, 0.16) 0 2px, transparent 2px 9px);
+}
+
+/* Range text lives above its band, so a narrow band never swallows it. */
+.segment-range {
+  position: absolute;
+  left: var(--start);
+  top: 0;
+  padding-left: 0.15rem;
+  font-family: var(--font-meta);
+  font-size: 0.66rem;
+  letter-spacing: 0.04em;
+  color: var(--bone-dim);
+  white-space: nowrap;
+  pointer-events: none;
+}
+
+.truth-chip {
+  padding: 0.1rem 0.4rem;
+  border: 1px solid currentColor;
+  font-family: var(--font-meta);
+  font-size: 0.58rem;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+.truth-chip[data-truth='observed'] {
+  color: var(--observed);
+}
+
+.truth-chip[data-truth='modeled'] {
+  color: var(--modeled);
+}
+
+.truth-chip[data-truth='inferred'] {
+  color: var(--inferred);
+}
+
+.truth-chip[data-truth='unknown'] {
+  color: var(--unknown);
+}
+
+.lane--you {
+  margin-top: auto;
+  padding-top: 0.8rem;
+  border-top: 1px dashed var(--line);
+}
+
+.lane-track {
+  height: 72px;
+}
+
+.lane-track--ask {
+  display: flex;
+  align-items: flex-start;
+  height: auto;
+  min-height: 54px;
+  padding-bottom: 1.4rem;
+}
+
+.travel-block {
+  position: absolute;
+  left: var(--start);
+  width: var(--span);
+  top: 8px;
+  height: 26px;
+  display: flex;
+  align-items: center;
+  padding: 0 0.5rem;
+  border: 1px solid rgba(242, 179, 92, 0.5);
+  border-left-width: 2px;
+  background: linear-gradient(90deg, rgba(242, 179, 92, 0.3), rgba(242, 179, 92, 0.05));
+  overflow: hidden;
+}
+
+.travel-text {
+  font-family: var(--font-meta);
+  font-size: 0.64rem;
+  color: var(--bone-dim);
+  white-space: nowrap;
+}
+
+.lot-marker {
+  position: absolute;
+  left: var(--start);
+  bottom: 2px;
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  transform: translateX(-5px);
+  white-space: nowrap;
+}
+
+.lot-dot {
+  width: 9px;
+  height: 9px;
+  border: 1px solid var(--observed);
+  background: rgba(79, 240, 192, 0.35);
+  transform: rotate(45deg);
+}
+
+.lot-label,
+.landing-label {
+  font-family: var(--font-meta);
+  font-size: 0.64rem;
+  letter-spacing: 0.14em;
+  color: var(--bone-dim);
+}
+
+.landing-marker {
+  position: absolute;
+  left: var(--start);
+  top: -0.1rem;
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding-right: 0.3rem;
+  background: linear-gradient(90deg, rgba(10, 9, 8, 0.9), rgba(10, 9, 8, 0.55));
+  white-space: nowrap;
+}
+
+.landing-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--observed);
+  box-shadow: 0 0 14px rgba(79, 240, 192, 0.8);
+}
+
+.lane-empty {
+  margin: 0;
+  color: var(--bone-faint);
+  font-size: 0.85rem;
+}
+
+.legend {
+  position: absolute;
+  right: var(--plot-pad);
+  bottom: 0.6rem;
+  z-index: 4;
+  display: flex;
+  gap: 0.9rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.legend-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  font-family: var(--font-meta);
+  font-size: 0.58rem;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--bone-faint);
+}
+
+.legend-swatch {
+  width: 10px;
+  height: 4px;
+}
+
+.legend-item[data-truth='observed'] .legend-swatch {
+  background: var(--observed);
+}
+
+.legend-item[data-truth='modeled'] .legend-swatch {
+  background: var(--modeled);
+}
+
+.legend-item[data-truth='inferred'] .legend-swatch {
+  background: var(--inferred);
+}
+
+.legend-item[data-truth='unknown'] .legend-swatch {
+  background: repeating-linear-gradient(-45deg, var(--unknown) 0 2px, transparent 2px 4px);
+}
+
+/* ------------------------------------------------------------- envelope */
+
+/*
+ * The decision envelope is where a person reads and commits, so it is a warm
+ * light sheet — the same paper as the Living News briefing and the sources
+ * sheet — laid over the dark terrain. This is functional, not a theme: the
+ * world stays dark because space and time read best there, and there is no
+ * global light/dark switch anywhere in the product.
+ */
+.envelope {
+  color-scheme: light;
+  padding: clamp(0.9rem, 1.9vw, 1.5rem) clamp(1rem, 2.2vw, 1.7rem);
+  border: 1px solid var(--paper-edge);
+  border-top: 3px solid rgba(13, 107, 79, 0.55);
+  background-color: var(--paper);
+  background-image: linear-gradient(180deg, var(--paper) 0%, #f6ead9 100%);
+  color: var(--paper-ink);
+  box-shadow: 0 -20px 66px rgba(0, 0, 0, 0.5);
+}
+
+.envelope--unknown {
+  border-top-color: rgba(138, 91, 18, 0.6);
+  background-image:
+    repeating-linear-gradient(-45deg, rgba(36, 29, 22, 0.045) 0 2px, transparent 2px 12px),
+    linear-gradient(180deg, var(--paper) 0%, #f3e6d3 100%);
+}
+
+.envelope-primary {
+  margin: 0;
+  font-family: var(--font-display);
+  font-weight: 400;
+  font-size: clamp(1.45rem, 3.1vw, 2.4rem);
+  line-height: 1.05;
+  letter-spacing: -0.035em;
+  color: var(--paper-ink);
+  text-wrap: balance;
+}
+
+.envelope-secondary {
+  margin: 0.35rem 0 0;
+  font-family: var(--font-display);
+  font-weight: 400;
+  font-size: clamp(0.98rem, 1.7vw, 1.25rem);
+  color: #3b3025;
+}
+
+.envelope-method,
+.envelope-rule {
+  margin: 0.5rem 0 0;
+  font-size: 0.78rem;
+  color: var(--paper-ink-dim);
+  max-width: 110ch;
+}
+
+/*
+ * Which forces actually moved the range. Small, factual, and always beside the
+ * commitment it changed — never a separate conditions card.
+ */
+.envelope-conditions {
+  margin: 0.45rem 0 0;
+  padding: 0 0 0 1rem;
+  list-style: none;
+  display: grid;
+  gap: 0.15rem;
+  font-size: 0.78rem;
+  color: var(--paper-ink-dim);
+}
+
+.envelope-conditions li {
+  position: relative;
+}
+
+.envelope-conditions li::before {
+  content: '';
+  position: absolute;
+  left: -0.8rem;
+  top: 0.52em;
+  width: 8px;
+  height: 2px;
+  background: #b4761f;
+}
+
+.envelope .world-link {
+  color: #16607f;
+  text-decoration-color: rgba(22, 96, 127, 0.4);
+}
+
+.envelope .world-link:hover,
+.envelope .world-link:focus-visible {
+  color: #0d4459;
+}
+
+.envelope .ghost-button {
+  border-color: rgba(36, 29, 22, 0.3);
+  color: #3b3025;
+}
+
+.envelope .ghost-button:hover,
+.envelope .ghost-button:focus-visible {
+  color: var(--paper-ink);
+  border-color: var(--paper-ink);
+}
+
+.envelope .primary-button {
+  border-color: rgba(13, 107, 79, 0.55);
+  background: rgba(13, 107, 79, 0.12);
+  color: #0d6b4f;
+}
+
+.envelope .primary-button:hover,
+.envelope .primary-button:focus-visible {
+  background: rgba(13, 107, 79, 0.2);
+}
+
+.envelope .sample-tag {
+  border-color: rgba(150, 105, 30, 0.5);
+  background: rgba(233, 178, 78, 0.22);
+  color: #7a4d0c;
+}
+
+.envelope :focus-visible {
+  outline-color: #0d6b4f;
+}
+
+.envelope-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.7rem;
+  margin-top: 1rem;
+}
+
+.link-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem 1.2rem;
+  margin: 0.7rem 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.world-link {
+  color: var(--bone-dim);
+  font-size: 0.8rem;
+  text-decoration: underline;
+  text-underline-offset: 4px;
+  text-decoration-color: var(--line-strong);
+}
+
+.world-link:hover {
+  color: var(--observed);
+}
+
+/* -------------------------------------------------------------- origin */
+
+.origin-picker {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem 0.7rem;
+  width: 100%;
+  padding: 0.4rem 0;
+}
+
+.origin-question {
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: 0.98rem;
+  color: var(--bone-dim);
+}
+
+.origin-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.origin-notice {
+  flex: 1 1 100%;
+  margin: 0;
+  color: var(--modeled);
+  font-size: 0.82rem;
+}
+
+.place-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.place {
+  display: inline-flex;
+  flex-direction: column;
+  align-items: flex-start;
+  justify-content: center;
+  gap: 0.05rem;
+  padding: 0.3rem 0.85rem;
+  border: 1px solid var(--line-strong);
+  background: rgba(43, 36, 30, 0.45);
+}
+
+.place:hover,
+.place:focus-visible {
+  border-color: var(--observed);
+}
+
+.place-name {
+  font-size: 0.9rem;
+}
+
+.place-drive {
+  font-family: var(--font-meta);
+  font-size: 0.6rem;
+  letter-spacing: 0.1em;
+  color: var(--bone-faint);
+}
+
+.origin-form {
+  display: flex;
+  gap: 0.5rem;
+  flex: 1 1 260px;
+  min-width: 0;
+}
+
+.origin-input,
+.followup-input {
+  flex: 1 1 200px;
+  min-width: 0;
+  min-height: var(--tap);
+  padding: 0 0.9rem;
+  border: 1px solid var(--line);
+  background: rgba(10, 9, 8, 0.6);
+  color: var(--bone);
+}
+
+.origin-note {
+  flex: 1 1 100%;
+  margin: 0;
+  color: var(--bone-faint);
+  font-size: 0.72rem;
+}
+
+/* ------------------------------------------------------- terrain controls */
+
+.terrain-controls {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.7rem;
+}
+
+.followup {
+  display: flex;
+  gap: 0.5rem;
+  flex: 1 1 320px;
+  min-width: 0;
+}
+
+.what-changed {
+  border: 1px solid var(--line);
+  padding: 0.35rem 0.8rem;
+  color: var(--bone-faint);
+  font-size: 0.8rem;
+}
+
+.what-changed summary {
+  min-height: 34px;
+  display: flex;
+  align-items: center;
+  cursor: pointer;
+  font-family: var(--font-meta);
+  font-size: 0.66rem;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+}
+
+.change-list {
+  margin: 0.4rem 0;
+  padding-left: 1.1rem;
+}
+
+/* ------------------------------------------------------ sheets & popovers */
+
+.sheet,
+.popover {
+  border: 1px solid var(--line-strong);
+  background: linear-gradient(180deg, rgba(24, 21, 18, 0.98), rgba(10, 9, 8, 0.98));
+  color: var(--bone);
+  padding: clamp(1rem, 2.4vw, 1.8rem);
+}
+
+.sheet::backdrop,
+.popover::backdrop {
+  background: rgba(4, 4, 3, 0.72);
+}
+
+.sheet {
+  width: min(880px, 94vw);
+  max-height: 82vh;
+  margin: auto auto 0;
+  overflow: auto;
+}
+
+.popover {
+  width: min(420px, 92vw);
+  margin: 4vh 4vw 4vh auto;
+}
+
+.sheet-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  margin-bottom: 1rem;
+}
+
+.sheet-title {
+  margin: 0;
+  font-family: var(--font-display);
+  font-weight: 400;
+  font-size: 1.3rem;
+}
+
+.source-list {
+  display: grid;
+  gap: 0.9rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.source-row {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 0.8rem;
+  align-items: start;
+  padding-bottom: 0.9rem;
+  border-bottom: 1px solid var(--line);
+}
+
+.source-title {
+  margin: 0;
+  font-size: 0.95rem;
+}
+
+.source-detail {
+  margin: 0.2rem 0;
+  color: var(--bone-faint);
+  font-size: 0.82rem;
+}
+
+.choice-group {
+  margin: 0 0 1rem;
+  padding: 0;
+  border: 0;
+}
+
+.choice-group legend {
+  padding: 0;
+  font-family: var(--font-meta);
+  font-size: 0.64rem;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--bone-faint);
+}
+
+.choice-row {
+  display: flex;
+  gap: 0.5rem;
+  margin-top: 0.45rem;
+}
+
+.choice {
+  padding: 0 1rem;
+  border: 1px solid var(--line);
+  background: transparent;
+  color: var(--bone-dim);
+  font-size: 0.88rem;
+}
+
+.choice[aria-pressed='true'] {
+  border-color: var(--observed);
+  color: var(--observed);
+  background: rgba(79, 240, 192, 0.1);
+}
+
+.dev-row {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  min-height: var(--tap);
+}
+
+.dev-panel {
+  margin: 0 var(--shell-pad) var(--shell-pad);
+  padding: 1rem;
+  border: 1px solid var(--line);
+  background: rgba(10, 9, 8, 0.9);
+  max-height: 40vh;
+  overflow: auto;
+}
+
+.dev-panel pre {
+  margin: 0;
+  font-family: var(--font-meta);
+  font-size: 0.7rem;
+  color: var(--bone-dim);
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+/* ============================================================ living news */
+/*
+ * Signal Field.
+ *
+ * A different world, not a different theme. Time Terrain is a warm graphite
+ * plot where horizontal position is time. The Signal Field is a cold deep
+ * atmosphere where distance from the centre is *reach* and size is impact.
+ *
+ * Hue means force (local / markets / weather / mobility). Texture means truth
+ * (solid + glow = observed, ringed = modeled, hollow = inferred, hatched =
+ * unavailable). Light and dark are used by function: the field is dark
+ * because space and contrast read best there, and the briefing ribbon and the
+ * sources sheet are warm light because sentences read best there.
+ */
+
+:root {
+  --news-void: #05070f;
+  --news-deep: #0a0f1e;
+  --news-haze: rgba(150, 190, 255, 0.1);
+  --news-ink: #eef2fb;
+
+  --layer-local: #7ee0ff;
+  --layer-markets: #ffd166;
+  --layer-weather: #8dffc9;
+  --layer-mobility: #ff9ec4;
+
+  --paper: #fbf3e7;
+  --paper-edge: #efe1cd;
+  --paper-ink: #241d16;
+  --paper-ink-dim: #5d5044;
+}
+
+/*
+ * The two worlds have two atmospheres. Which one the page is standing in is
+ * stated once, on the body, so a Travel question forming its terrain keeps the
+ * warm graphite ground while the Signal Field keeps its cold deep space.
+ */
+body[data-world='news'] {
+  background:
+    radial-gradient(90% 60% at 50% 42%, rgba(96, 140, 255, 0.14), transparent 62%),
+    radial-gradient(70% 50% at 88% 80%, rgba(255, 209, 102, 0.08), transparent 60%),
+    linear-gradient(180deg, #070b16 0%, var(--news-void) 55%, #03040a 100%);
+}
+
+/* ----------------------------------------------------------- clarify */
+
+.clarify-stage {
+  display: grid;
+  align-content: center;
+  justify-items: start;
+  gap: clamp(1rem, 2.4vw, 1.9rem);
+  width: min(900px, 100%);
+  margin: 0 auto;
+  padding-bottom: 8vh;
+}
+
+.clarify-read {
+  margin: 0;
+  font-family: var(--font-meta);
+  font-size: 0.68rem;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: var(--bone-faint);
+}
+
+.clarify-question {
+  margin: 0;
+  max-width: 18ch;
+  font-family: var(--font-display);
+  font-weight: 300;
+  font-size: clamp(1.9rem, 5.4vw, 4rem);
+  line-height: 1.02;
+  letter-spacing: -0.035em;
+  text-wrap: balance;
+}
+
+.clarify-choices {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.8rem;
+  width: 100%;
+}
+
+.choice-card {
+  flex: 1 1 220px;
+  min-height: 92px;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 0.25rem;
+  padding: 1rem 1.2rem;
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius);
+  background: linear-gradient(180deg, rgba(126, 224, 255, 0.06), rgba(10, 15, 30, 0.5));
+  color: var(--bone);
+  text-align: left;
+  cursor: pointer;
+  transition: border-color 0.18s ease, background 0.18s ease, transform 0.18s ease;
+}
+
+.choice-card:hover,
+.choice-card:focus-visible {
+  border-color: var(--layer-local);
+  background: linear-gradient(180deg, rgba(126, 224, 255, 0.16), rgba(10, 15, 30, 0.6));
+  transform: translateY(-2px);
+}
+
+.choice-card-label {
+  font-family: var(--font-display);
+  font-size: clamp(1.05rem, 1.9vw, 1.4rem);
+  letter-spacing: -0.02em;
+}
+
+.choice-card-detail {
+  font-family: var(--font-meta);
+  font-size: 0.64rem;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--bone-faint);
+}
+
+.clarify-note {
+  margin: 0;
+  color: var(--bone-faint);
+  font-size: 0.82rem;
+}
+
+/* ------------------------------------------- travel, forming (world-first) */
+
+/*
+ * A Travel question is never asked on a blank page. The Time Terrain is
+ * already there — time running left to right, the arrival stages stacked in
+ * it — just without facts. Choosing a job fills the world in; it does not
+ * navigate somewhere new.
+ */
+.shell--travel-clarify {
+  grid-template-rows: auto 1fr;
+}
+
+.clarify-stage--travel {
+  position: relative;
+  align-content: center;
+  justify-items: stretch;
+  width: min(1100px, 100%);
+  isolation: isolate;
+}
+
+.clarify-copy {
+  position: relative;
+  z-index: 2;
+  display: grid;
+  justify-items: start;
+  gap: clamp(0.9rem, 2vw, 1.6rem);
+  width: 100%;
+}
+
+.clarify-lede {
+  margin: 0;
+  max-width: 62ch;
+  font-family: var(--font-display);
+  font-weight: 300;
+  font-size: clamp(1rem, 1.8vw, 1.25rem);
+  line-height: 1.4;
+  color: var(--bone-dim);
+}
+
+.forming-world,
+.constellation {
+  position: absolute;
+  z-index: 0;
+  pointer-events: none;
+  opacity: 0.75;
+  overflow: hidden;
+  /* The world forms beside the question, never underneath its words. */
+  inset: -2vh -1vw auto 54%;
+  height: min(48vh, 400px);
+}
+
+@media (max-width: 1000px) {
+  /* Narrow: the world forms *under* the question instead of beside it, so
+     nothing sits on top of anything. */
+  .forming-world,
+  .constellation {
+    position: relative;
+    inset: auto;
+    order: 2;
+    height: min(28vh, 210px);
+    margin-top: 1.2rem;
+    opacity: 0.45;
+  }
+
+  .clarify-copy {
+    order: 1;
+  }
+}
+
+.forming-axis {
+  position: absolute;
+  left: 4%;
+  right: 4%;
+  top: 8%;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, rgba(240, 232, 220, 0.2), transparent);
+}
+
+.forming-tick {
+  position: absolute;
+  left: var(--start);
+  top: 0;
+  width: 1px;
+  height: 7px;
+  background: rgba(240, 232, 220, 0.22);
+}
+
+.forming-lanes {
+  position: absolute;
+  left: 4%;
+  right: 4%;
+  top: 14%;
+  bottom: 6%;
+  display: grid;
+  align-content: space-between;
+  gap: clamp(0.5rem, 2vh, 1.4rem);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.forming-lane {
+  display: grid;
+  grid-template-columns: clamp(110px, 14vw, 190px) 1fr;
+  align-items: center;
+  gap: 0.8rem;
+}
+
+.forming-lane-label {
+  font-family: var(--font-meta);
+  font-size: 0.58rem;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: rgba(240, 232, 220, 0.22);
+}
+
+.forming-track {
+  position: relative;
+  display: block;
+  height: 12px;
+  border-bottom: 1px solid rgba(240, 232, 220, 0.05);
+}
+
+.forming-band {
+  position: absolute;
+  left: var(--start);
+  width: var(--span);
+  top: 0;
+  bottom: 2px;
+  border-left: 2px solid rgba(143, 166, 184, 0.35);
+  background: repeating-linear-gradient(-45deg, rgba(240, 232, 220, 0.09) 0 2px, transparent 2px 9px);
+  animation: forming-breathe 3.6s ease-in-out infinite;
+}
+
+.forming-lane:nth-child(2) .forming-band {
+  animation-delay: 0.4s;
+}
+.forming-lane:nth-child(3) .forming-band {
+  animation-delay: 0.8s;
+}
+.forming-lane:nth-child(4) .forming-band {
+  animation-delay: 1.2s;
+}
+.forming-lane:nth-child(5) .forming-band {
+  animation-delay: 1.6s;
+}
+
+.forming-now {
+  position: absolute;
+  left: 12%;
+  top: 8%;
+  bottom: 6%;
+  width: 1px;
+  background: linear-gradient(180deg, rgba(79, 240, 192, 0.5), transparent);
+}
+
+@keyframes forming-breathe {
+  0%,
+  100% {
+    opacity: 0.55;
+  }
+  50% {
+    opacity: 1;
+  }
+}
+
+:root[data-motion='reduced'] .forming-band {
+  animation: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .forming-band {
+    animation: none;
+  }
+}
+
+.constellation-node {
+  position: absolute;
+  left: var(--x);
+  top: var(--y);
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: rgba(191, 228, 255, 0.7);
+  box-shadow: 0 0 18px rgba(126, 224, 255, 0.55);
+  transform: translate(-50%, -50%);
+}
+
+.constellation-arc {
+  position: absolute;
+  left: 12%;
+  right: 8%;
+  top: 42%;
+  height: 34%;
+  border-top: 1px dashed rgba(190, 225, 255, 0.28);
+  border-radius: 50%;
+}
+
+/* ------------------------------------------------------- signal field */
+
+.shell--field {
+  padding-left: 0;
+  padding-right: 0;
+  padding-bottom: 0;
+  gap: clamp(0.5rem, 1.1vw, 0.9rem);
+}
+
+.shell--field > .brand-row,
+.field-controls {
+  padding-left: var(--shell-pad);
+  padding-right: var(--shell-pad);
+}
+
+.field {
+  display: grid;
+  grid-template-rows: auto clamp(390px, 54vh, 600px) auto auto;
+  align-content: start;
+  gap: clamp(0.4rem, 1vw, 0.8rem);
+  min-height: 0;
+}
+
+.field-stage {
+  position: relative;
+  min-height: 390px;
+  height: 100%;
+  overflow: hidden;
+  isolation: isolate;
+  border-top: 1px solid rgba(150, 190, 255, 0.14);
+  border-bottom: 1px solid rgba(150, 190, 255, 0.14);
+  background-color: #061015;
+  background-image:
+    radial-gradient(46% 60% at var(--center-x, 46%) 50%, rgba(120, 170, 255, 0.16), transparent 72%),
+    radial-gradient(120% 90% at 50% 120%, rgba(255, 209, 102, 0.06), transparent 62%),
+    linear-gradient(180deg, rgba(6, 16, 21, 0.58), rgba(4, 12, 16, 0.72));
+}
+
+/*
+ * The plot is the coordinate space. Keeping it close to square is what makes
+ * the reach rings read as rings instead of a squashed racetrack, while the
+ * atmosphere and the market axis still run the full width of the viewport.
+ */
+.field-plot {
+  position: absolute;
+  inset: 0;
+  z-index: 3;
+  width: min(88%, calc((100vh - 22rem) * 1.55));
+  min-width: min(100%, 560px);
+  margin: 0 auto;
+  overflow: visible;
+}
+
+.field-map-frame {
+  position: absolute;
+  inset: 0;
+  z-index: 0 !important;
+  width: min(88%, calc((100vh - 22rem) * 1.55));
+  min-width: min(100%, 560px);
+  margin: 0 auto;
+  overflow: hidden;
+  background: #07141a;
+  pointer-events: none;
+}
+
+.field-map-base {
+  position: absolute;
+  left: 0;
+  top: 0;
+  display: block;
+  border: 0;
+  transform-origin: top left;
+  transform: scale(var(--field-map-scale-x, 1), var(--field-map-scale-y, 1));
+  filter: saturate(0.78) contrast(1.02) brightness(0.86);
+  pointer-events: none;
+}
+
+.field-map-wash {
+  position: absolute;
+  inset: 0;
+  background:
+    radial-gradient(circle at 50% 50%, rgba(4, 21, 25, 0.02), rgba(2, 10, 14, 0.20) 82%),
+    linear-gradient(180deg, rgba(2, 12, 17, 0.08), rgba(2, 10, 14, 0.20));
+  pointer-events: none;
+}
+
+.field-stage > .fx-canvas {
+  z-index: 1;
+  opacity: 0.12;
+}
+
+.field-atmosphere {
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  pointer-events: none;
+  opacity: 0.48;
+  background:
+    linear-gradient(112deg, rgba(3, 25, 31, 0.34), transparent 44%),
+    linear-gradient(180deg, rgba(39, 119, 119, 0.06), transparent 38%, rgba(2, 10, 14, 0.32));
+}
+
+.field-geometry {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+}
+
+.field-ring {
+  fill: none;
+  stroke: rgba(160, 200, 255, 0.16);
+  stroke-width: 1;
+}
+
+.field-bearing-axis {
+  stroke: rgba(93, 245, 233, 0.11);
+  stroke-width: 0.65;
+  stroke-dasharray: 1 4;
+}
+
+.field-reach-boundary {
+  fill: rgba(15, 224, 209, 0.025);
+  stroke: rgba(91, 255, 239, 0.55);
+  stroke-width: 1.1;
+}
+
+.field-weather-area {
+  pointer-events: none;
+  color: var(--layer-weather);
+}
+
+.field-weather-footprint {
+  fill: rgba(71, 255, 181, calc(0.045 + var(--weather-intensity, 0.4) * 0.10));
+  stroke: none;
+  filter: drop-shadow(0 0 12px rgba(65, 255, 185, 0.28));
+}
+
+.field-weather-wind {
+  stroke: rgba(190, 255, 225, 0.72);
+  stroke-width: 1.4;
+  stroke-dasharray: 5 2;
+  filter: drop-shadow(0 0 4px rgba(91, 255, 194, 0.55));
+}
+
+.field-weather-arrow {
+  fill: rgba(202, 255, 230, 0.9);
+  filter: drop-shadow(0 0 4px rgba(91, 255, 194, 0.72));
+}
+
+.field-weather-vector-label {
+  fill: rgba(215, 255, 235, 0.88);
+  font-family: var(--font-meta);
+  font-size: 2.2px;
+  letter-spacing: 0.12em;
+}
+
+.field-weather-area[data-intensity='0'] {
+  display: none;
+}
+
+.field-ring[data-ring='immediate'] {
+  stroke: rgba(190, 225, 255, 0.4);
+}
+
+.field-ring[data-ring='market'] {
+  stroke: rgba(255, 209, 102, 0.22);
+  stroke-dasharray: 3 5;
+}
+
+.field-tether {
+  stroke: rgba(170, 205, 255, 0.22);
+  stroke-width: 1;
+}
+
+.field-tether[data-tether='market'] {
+  stroke: rgba(255, 209, 102, 0.3);
+  stroke-dasharray: 2 4;
+}
+
+.field-tether[data-truth='unknown'] {
+  stroke-dasharray: 1 5;
+  stroke: rgba(200, 210, 230, 0.2);
+}
+
+.ring-labels {
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  pointer-events: none;
+}
+
+.ring-label {
+  position: absolute;
+  left: var(--x);
+  top: var(--y);
+  display: grid;
+  gap: 0.1rem;
+  justify-items: center;
+  transform: translate(-50%, -125%);
+  font-family: var(--font-meta);
+  font-size: 0.56rem;
+  letter-spacing: 0.24em;
+  text-transform: uppercase;
+  color: rgba(190, 215, 255, 0.5);
+  white-space: nowrap;
+}
+
+.ring-count {
+  letter-spacing: 0.12em;
+  color: rgba(190, 215, 255, 0.32);
+}
+
+.compass-mark {
+  position: absolute;
+  left: var(--x);
+  top: var(--y);
+  transform: translate(-50%, -50%);
+  font-family: var(--font-meta);
+  font-size: 0.58rem;
+  letter-spacing: 0.2em;
+  color: rgba(190, 215, 255, 0.28);
+}
+
+/* ------------------------------------------------------------- centre */
+
+.field-center {
+  position: absolute;
+  left: var(--x);
+  top: var(--y);
+  z-index: 6;
+  display: grid;
+  justify-items: center;
+  gap: 0.35rem;
+  transform: translate(-50%, -50%);
+  text-align: center;
+}
+
+/*
+ * The centre ripple. It plays once, when the field is built or rebuilt — a
+ * layer toggle, a new place, a refresh — and then stops. YOU are not a
+ * transmitter; nothing is broadcasting from the middle of the screen.
+ */
+.center-pulse {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 96px;
+  height: 96px;
+  margin: -48px 0 0 -48px;
+  border: 1px solid rgba(190, 225, 255, 0.55);
+  border-radius: 50%;
+  animation: pulse-out 2.4s ease-out 1 both;
+  pointer-events: none;
+}
+
+.center-pulse--wide {
+  animation-delay: 0.5s;
+}
+
+@keyframes pulse-out {
+  0% {
+    transform: scale(0.35);
+    opacity: 0.85;
+  }
+  100% {
+    transform: scale(2.6);
+    opacity: 0;
+  }
+}
+
+.center-label {
+  position: relative;
+  margin: 0;
+  display: inline-flex;
+  align-items: baseline;
+  gap: 0.4rem;
+  padding: 0.35rem 0.8rem;
+  border: 1px solid rgba(190, 225, 255, 0.34);
+  border-radius: 999px;
+  background: rgba(6, 10, 20, 0.78);
+  box-shadow: 0 0 40px rgba(120, 180, 255, 0.28);
+  font-family: var(--font-meta);
+  font-size: 0.66rem;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--news-ink);
+  white-space: nowrap;
+}
+
+.center-you {
+  color: #bfe4ff;
+}
+
+.center-dot {
+  color: rgba(190, 215, 255, 0.45);
+}
+
+.center-clock {
+  color: #ffe6ab;
+}
+
+.center-place {
+  position: relative;
+  min-height: 0;
+  padding: 0.1rem 0.4rem;
+  border: 0;
+  background: none;
+  color: rgba(190, 215, 255, 0.6);
+  font-family: var(--font-meta);
+  font-size: 0.56rem;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  text-decoration: underline;
+  text-underline-offset: 4px;
+  cursor: pointer;
+}
+
+.center-place:hover,
+.center-place:focus-visible {
+  color: var(--news-ink);
+}
+
+.center-places {
+  position: relative;
+  z-index: 7;
+  display: grid;
+  gap: 0.5rem;
+  justify-items: center;
+  width: min(420px, 78vw);
+  padding: 0.8rem;
+  border: 1px solid rgba(190, 225, 255, 0.24);
+  background: rgba(6, 10, 20, 0.94);
+  box-shadow: 0 24px 60px rgba(0, 0, 0, 0.6);
+}
+
+.place--field {
+  background: rgba(126, 224, 255, 0.07);
+  border-color: rgba(190, 225, 255, 0.3);
+}
+
+.center-places-note {
+  margin: 0;
+  color: var(--bone-faint);
+  font-size: 0.68rem;
+  text-align: center;
+}
+
+/* ------------------------------------------------------------ signals */
+
+.signal {
+  position: absolute;
+  left: var(--x);
+  top: var(--y);
+  z-index: 4;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  min-height: 0;
+  padding: 0.2rem;
+  border: 0;
+  background: none;
+  transform: translate(-50%, -50%);
+  cursor: pointer;
+  text-align: left;
+}
+
+.signal[data-place='left'] {
+  flex-direction: row-reverse;
+}
+
+.signal[data-place='above'] {
+  flex-direction: column-reverse;
+  gap: 0.3rem;
+}
+
+.signal[data-place='below'] {
+  flex-direction: column;
+  gap: 0.3rem;
+}
+
+.signal[data-place='left'] .signal-label {
+  text-align: right;
+}
+
+.signal-dot {
+  flex: 0 0 auto;
+  width: calc(11px * var(--size, 1));
+  height: calc(11px * var(--size, 1));
+  border-radius: 50%;
+  border: 1px solid currentColor;
+  background: currentColor;
+  box-shadow: 0 0 calc(14px * var(--size, 1)) currentColor;
+}
+
+/*
+ * Direct type on the field. No plate, no border, no backdrop: the name is set
+ * straight onto the atmosphere and stays legible through weight, a tight
+ * shadow, and the fact that a measured layout pass keeps it off the anchor,
+ * the ring names, and the axis. Content width only — nothing is clipped.
+ */
+.signal-label {
+  display: grid;
+  gap: 0.05rem;
+  max-width: 16ch;
+  padding: 0;
+  border: 0;
+  background: none;
+  box-shadow: none;
+  /* No transition: the layout pass measures this rect, and an in-flight
+     transform would make every measurement lie. */
+  transform: translate(var(--dx, 0px), var(--dy, 0px));
+}
+
+.signal[data-detail='low'] .signal-label {
+  opacity: 0;
+  transition: opacity 0.16s ease;
+}
+
+.signal[data-detail='low']:hover .signal-label,
+.signal[data-detail='low']:focus-visible .signal-label {
+  opacity: 1;
+}
+
+.signal[data-display='rail'] .signal-label {
+  display: none;
+}
+
+.signal[data-display='rail'] .signal-dot {
+  width: 8px;
+  height: 8px;
+  background: currentColor;
+  box-shadow: 0 0 9px currentColor;
+}
+
+.local-news-rail {
+  position: absolute;
+  left: clamp(0.7rem, 1.5vw, 1.3rem);
+  top: clamp(0.7rem, 1.5vw, 1.3rem);
+  z-index: 6;
+  width: min(19rem, 23vw);
+  padding: 0.65rem 0.8rem;
+  border-left: 1px solid rgba(93, 245, 233, 0.48);
+  background: linear-gradient(90deg, rgba(3, 14, 19, 0.92), rgba(3, 14, 19, 0.68));
+  backdrop-filter: blur(8px);
+}
+
+.local-news-rail-title {
+  margin: 0 0 0.35rem;
+  color: rgba(115, 255, 241, 0.72);
+  font-family: var(--font-meta);
+  font-size: 0.54rem;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+}
+
+.local-news-rail-list {
+  display: grid;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.local-news-rail-item {
+  display: grid;
+  grid-template-columns: 1.6rem 1fr;
+  gap: 0.45rem;
+  width: 100%;
+  min-height: 3.35rem;
+  padding: 0.5rem 0;
+  border: 0;
+  border-top: 1px solid rgba(93, 245, 233, 0.12);
+  background: transparent;
+  color: #edf8f7;
+  text-align: left;
+  cursor: pointer;
+}
+
+.local-news-index,
+.local-news-meta {
+  font-family: var(--font-meta);
+  font-size: 0.52rem;
+  letter-spacing: 0.07em;
+}
+
+.local-news-index {
+  color: rgba(115, 255, 241, 0.58);
+}
+
+.local-news-copy {
+  display: grid;
+  gap: 0.2rem;
+}
+
+.local-news-headline {
+  font-size: 0.73rem;
+  line-height: 1.25;
+}
+
+.local-news-meta {
+  color: rgba(185, 214, 215, 0.58);
+}
+
+.local-news-rail-item:hover,
+.local-news-rail-item:focus-visible {
+  color: #fff;
+  background: rgba(40, 137, 135, 0.12);
+}
+
+.signal[data-place='above'] .signal-label,
+.signal[data-place='below'] .signal-label {
+  text-align: center;
+}
+
+.signal-short {
+  font-family: var(--font-display);
+  font-size: calc(0.68rem + 0.2rem * var(--size, 1));
+  font-weight: 500;
+  line-height: 1.15;
+  letter-spacing: -0.005em;
+  color: #f4f8ff;
+  text-shadow:
+    0 1px 2px rgba(2, 5, 12, 0.95),
+    0 0 14px rgba(2, 5, 12, 0.85);
+  text-wrap: balance;
+}
+
+.signal-meta {
+  font-family: var(--font-meta);
+  font-size: 0.55rem;
+  letter-spacing: 0.1em;
+  color: rgba(205, 222, 248, 0.82);
+  text-shadow: 0 1px 2px rgba(2, 5, 12, 0.95);
+  white-space: nowrap;
+}
+
+/* Detail follows size: the small signals stay quiet until you reach for them. */
+.signal[data-detail='low'] .signal-meta {
+  display: none;
+}
+
+.signal[data-detail='low']:hover .signal-meta,
+.signal[data-detail='low']:focus-visible .signal-meta {
+  display: block;
+}
+
+.signal[data-layer='local'] {
+  color: var(--layer-local);
+}
+.signal[data-layer='markets'] {
+  color: var(--layer-markets);
+}
+.signal[data-layer='weather'] {
+  color: var(--layer-weather);
+}
+.signal[data-layer='mobility'] {
+  color: var(--layer-mobility);
+}
+
+/* Truth is texture, never hue — hue is already spoken for by the layer. */
+.signal[data-truth='modeled'] .signal-dot {
+  background: transparent;
+  box-shadow: 0 0 calc(9px * var(--size, 1)) currentColor;
+  border-width: 2px;
+}
+
+.signal[data-truth='inferred'] .signal-dot {
+  background: transparent;
+  box-shadow: none;
+  opacity: 0.85;
+}
+
+.signal[data-truth='unknown'] {
+  color: rgba(180, 196, 220, 0.75);
+}
+
+.signal[data-truth='unknown'] .signal-dot {
+  background: repeating-linear-gradient(-45deg, currentColor 0 1px, transparent 1px 4px);
+  box-shadow: none;
+  border-style: dashed;
+}
+
+.signal[data-truth='unknown'] .signal-label {
+  opacity: 0.82;
+}
+
+.signal[data-truth='unknown'] .signal-short {
+  font-style: italic;
+}
+
+.signal:hover,
+.signal:focus-visible {
+  z-index: 8;
+}
+
+.signal:hover .signal-short,
+.signal:focus-visible .signal-short {
+  color: #ffffff;
+  text-shadow:
+    0 1px 2px rgba(2, 5, 12, 1),
+    0 0 20px currentColor;
+}
+
+.signal:focus-visible {
+  outline: 2px solid var(--layer-local);
+  outline-offset: 4px;
+  border-radius: 3px;
+}
+
+.signal:hover .signal-dot,
+.signal:focus-visible .signal-dot {
+  transform: scale(1.18);
+}
+
+/* -------------------------------------------------------- market axis */
+
+.market-axis {
+  position: absolute;
+  right: 0;
+  top: 0;
+  bottom: 0;
+  z-index: 5;
+  width: clamp(150px, 17vw, 230px);
+  padding: 1.2rem 1rem 1.2rem 1.3rem;
+}
+
+.axis-spine {
+  position: absolute;
+  left: 0;
+  top: 8%;
+  bottom: 8%;
+  width: 1px;
+  background: linear-gradient(180deg, transparent, rgba(255, 209, 102, 0.65), transparent);
+}
+
+.axis-title {
+  margin: 0;
+  font-family: var(--font-meta);
+  font-size: 0.56rem;
+  letter-spacing: 0.26em;
+  text-transform: uppercase;
+  color: rgba(255, 209, 102, 0.7);
+}
+
+.axis-list {
+  position: absolute;
+  inset: 0;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.axis-signal {
+  position: absolute;
+  left: 1.3rem;
+  right: 0.6rem;
+  top: var(--y);
+  display: grid;
+  gap: 0.08rem;
+  padding-left: 0.6rem;
+  border-left: 2px solid rgba(255, 209, 102, 0.5);
+  transform: translateY(-50%);
+}
+
+.axis-move {
+  font-family: var(--font-display);
+  font-size: 1.15rem;
+  letter-spacing: -0.02em;
+  color: var(--layer-markets);
+}
+
+.axis-signal[data-direction='down'] .axis-move {
+  color: var(--tripwire);
+}
+
+.axis-signal[data-direction='flat'] .axis-move {
+  color: rgba(255, 226, 168, 0.75);
+  font-size: 0.9rem;
+}
+
+.axis-name {
+  font-size: 0.8rem;
+  color: var(--news-ink);
+}
+
+.axis-when {
+  font-family: var(--font-meta);
+  font-size: 0.55rem;
+  letter-spacing: 0.1em;
+  color: rgba(200, 216, 240, 0.55);
+}
+
+/* ------------------------------------------------------ layer controls */
+
+.field-instrument-rail {
+  position: relative;
+  z-index: 2;
+  display: grid;
+  grid-template-columns: auto auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: clamp(0.7rem, 1.5vw, 1.4rem);
+  min-height: 3.4rem;
+  padding: 0.35rem clamp(0.7rem, 1.6vw, 1.2rem);
+  border-bottom: 1px solid rgba(93, 245, 233, 0.28);
+  background: linear-gradient(90deg, rgba(3, 16, 22, 0.96), rgba(4, 19, 28, 0.88));
+  box-shadow: 0 8px 28px rgba(0, 8, 14, 0.34);
+}
+
+.layer-controls {
+  position: static;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.3rem;
+}
+
+.layer-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  min-height: var(--tap);
+  padding: 0 0.8rem;
+  border: 1px solid rgba(93, 245, 233, 0.2);
+  border-radius: 0;
+  background: rgba(4, 20, 27, 0.52);
+  color: rgba(205, 220, 245, 0.6);
+  font-family: var(--font-meta);
+  font-size: 0.6rem;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  cursor: pointer;
+  transition: border-color 0.18s ease, color 0.18s ease, background 0.18s ease;
+}
+
+.radius-controls {
+  display: inline-flex;
+  align-items: center;
+  min-height: var(--tap);
+  border-left: 1px solid rgba(93, 245, 233, 0.22);
+  border-right: 1px solid rgba(93, 245, 233, 0.22);
+}
+
+.instrument-label,
+.instrument-unit,
+.field-statusline {
+  font-family: var(--font-meta);
+  font-size: 0.55rem;
+  letter-spacing: 0.13em;
+  text-transform: uppercase;
+}
+
+.field-map-open {
+  color: #73fff1;
+  font-family: var(--font-meta);
+  font-size: 0.56rem;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  text-decoration: none;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.field-map-open:hover,
+.field-map-open:focus-visible {
+  color: #fff;
+  text-decoration: underline;
+  text-underline-offset: 4px;
+}
+
+.instrument-label,
+.instrument-unit {
+  padding: 0 0.55rem;
+  color: rgba(130, 232, 224, 0.58);
+}
+
+.radius-preset {
+  min-width: var(--tap);
+  min-height: var(--tap);
+  padding: 0 0.45rem;
+  border: 0;
+  border-left: 1px solid rgba(93, 245, 233, 0.14);
+  background: transparent;
+  color: rgba(198, 226, 231, 0.55);
+  font-family: var(--font-meta);
+  font-size: 0.62rem;
+  cursor: pointer;
+}
+
+.radius-preset[data-active='true'] {
+  color: #73fff1;
+  background: rgba(36, 132, 132, 0.22);
+  box-shadow: inset 0 -2px #73fff1;
+}
+
+.radius-preset:hover,
+.radius-preset:focus-visible {
+  color: #fff;
+  background: rgba(68, 173, 174, 0.2);
+}
+
+.field-statusline {
+  justify-self: end;
+  margin: 0;
+  color: rgba(139, 197, 204, 0.62);
+  text-align: right;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  pointer-events: none;
+}
+
+.layer-swatch {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  border: 1px solid currentColor;
+}
+
+.layer-toggle[data-layer='local'][data-active='true'] {
+  color: var(--layer-local);
+  border-color: rgba(126, 224, 255, 0.55);
+}
+.layer-toggle[data-layer='markets'][data-active='true'] {
+  color: var(--layer-markets);
+  border-color: rgba(255, 209, 102, 0.55);
+}
+.layer-toggle[data-layer='weather'][data-active='true'] {
+  color: var(--layer-weather);
+  border-color: rgba(141, 255, 201, 0.55);
+}
+.layer-toggle[data-layer='mobility'][data-active='true'] {
+  color: var(--layer-mobility);
+  border-color: rgba(255, 158, 196, 0.55);
+}
+
+.layer-toggle[data-active='true'] .layer-swatch {
+  background: currentColor;
+  box-shadow: 0 0 10px currentColor;
+}
+
+.layer-toggle[data-active='false'] {
+  opacity: 0.65;
+  text-decoration: line-through;
+  text-decoration-thickness: 1px;
+}
+
+.layer-toggle:hover,
+.layer-toggle:focus-visible {
+  background: rgba(16, 24, 44, 0.85);
+  opacity: 1;
+}
+
+/* ---------------------------------------------------- briefing ribbon */
+
+.briefing {
+  position: relative;
+  z-index: 2;
+  padding: clamp(0.8rem, 1.6vw, 1.25rem) var(--shell-pad);
+  border-top: 1px solid var(--paper-edge);
+  background-color: var(--paper);
+  background-image: linear-gradient(180deg, var(--paper) 0%, #f6ead9 100%);
+  color: var(--paper-ink);
+  box-shadow: 0 -22px 70px rgba(0, 0, 0, 0.55);
+}
+
+.briefing-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 1rem;
+  margin-bottom: 0.7rem;
+}
+
+.briefing-title {
+  margin: 0;
+  font-family: var(--font-display);
+  font-weight: 400;
+  font-size: clamp(1.2rem, 2.4vw, 1.85rem);
+  line-height: 1.05;
+  letter-spacing: -0.035em;
+  color: var(--paper-ink);
+}
+
+.sample-tag--light {
+  border-color: rgba(150, 105, 30, 0.5);
+  background: rgba(233, 178, 78, 0.22);
+  color: #7a4d0c;
+}
+
+.consequences {
+  display: grid;
+  gap: 0.4rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  counter-reset: consequence;
+}
+
+.consequence {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 0.7rem;
+  align-items: start;
+  padding-left: 0.7rem;
+  border-left: 3px solid rgba(36, 29, 22, 0.18);
+}
+
+.consequence[data-layer='local'] {
+  border-left-color: #1f7fa8;
+}
+.consequence[data-layer='markets'] {
+  border-left-color: #a9761a;
+}
+.consequence[data-layer='weather'] {
+  border-left-color: #16875c;
+}
+.consequence[data-layer='mobility'] {
+  border-left-color: #b03e73;
+}
+
+.consequence-rank {
+  font-family: var(--font-meta);
+  font-size: 0.66rem;
+  line-height: 1.6;
+  color: var(--paper-ink-dim);
+}
+
+.consequence-text {
+  margin: 0;
+  font-family: var(--font-display);
+  font-weight: 400;
+  font-size: clamp(0.95rem, 1.5vw, 1.15rem);
+  line-height: 1.25;
+  letter-spacing: -0.018em;
+  color: var(--paper-ink);
+  text-wrap: pretty;
+}
+
+.consequence:first-child .consequence-text {
+  font-size: clamp(1.1rem, 2vw, 1.45rem);
+}
+
+.consequence-source,
+.briefing-foot {
+  margin: 0.15rem 0 0;
+  font-family: var(--font-meta);
+  font-size: 0.62rem;
+  letter-spacing: 0.08em;
+  color: var(--paper-ink-dim);
+}
+
+.consequence-empty {
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: 1.1rem;
+  color: var(--paper-ink);
+}
+
+.briefing-foot {
+  margin-top: 0.8rem;
+}
+
+.absence-list {
+  display: grid;
+  gap: 0.25rem;
+  margin: 0.45rem 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.absence {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  font-size: 0.74rem;
+  color: var(--paper-ink-dim);
+}
+
+.absence-title {
+  font-family: var(--font-meta);
+  font-size: 0.6rem;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: #8a5b12;
+}
+
+.field-controls {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.7rem;
+  padding-bottom: clamp(0.7rem, 1.6vw, 1.2rem);
+}
+
+.field-notes {
+  flex: 1 1 100%;
+  margin: 0;
+  font-family: var(--font-meta);
+  font-size: 0.62rem;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--bone-faint);
+}
+
+/* --------------------------------------------------- warm light sheet */
+
+.sheet[data-surface='light'] {
+  border-color: var(--paper-edge);
+  background-color: var(--paper);
+  background-image: linear-gradient(180deg, var(--paper) 0%, #f4e8d7 100%);
+  color: var(--paper-ink);
+}
+
+.sheet[data-surface='light'] .sheet-title,
+.sheet[data-surface='light'] .source-title {
+  color: var(--paper-ink);
+}
+
+.sheet[data-surface='light'] .source-detail {
+  color: var(--paper-ink-dim);
+}
+
+.sheet[data-surface='light'] .source-row {
+  border-bottom-color: rgba(36, 29, 22, 0.14);
+}
+
+.sheet[data-surface='light'] .world-link {
+  color: #16607f;
+  text-decoration-color: rgba(22, 96, 127, 0.4);
+  overflow-wrap: anywhere;
+}
+
+.sheet[data-surface='light'] .ghost-button {
+  border-color: rgba(36, 29, 22, 0.28);
+  color: var(--paper-ink-dim);
+}
+
+.sheet[data-surface='light'] .ghost-button:hover,
+.sheet[data-surface='light'] .ghost-button:focus-visible {
+  color: var(--paper-ink);
+  border-color: var(--paper-ink);
+}
+
+.sheet[data-surface='light'] .truth-chip[data-truth='observed'] {
+  color: #0d6b4f;
+}
+.sheet[data-surface='light'] .truth-chip[data-truth='modeled'] {
+  color: #8a5b12;
+}
+.sheet[data-surface='light'] .truth-chip[data-truth='inferred'] {
+  color: #2b5a76;
+}
+.sheet[data-surface='light'] .truth-chip[data-truth='unknown'] {
+  color: #6b6157;
+}
+
+:root[data-contrast='high'] .signal-short {
+  color: #ffffff;
+  text-shadow:
+    0 1px 2px rgba(0, 0, 0, 1),
+    0 0 16px rgba(0, 0, 0, 0.95);
+}
+
+:root[data-contrast='high'] .signal-meta {
+  color: rgba(240, 246, 255, 0.95);
+}
+
+:root[data-contrast='high'] .briefing {
+  background: #fffaf2;
+}
+
+:root[data-contrast='high'] .consequence-source,
+:root[data-contrast='high'] .briefing-foot {
+  color: #3a3128;
+}
+
+:root[data-motion='reduced'] .center-pulse {
+  animation: none;
+  opacity: 0.35;
+}
+
+/* Signals settle only when the world actually changed — never on every paint.
+   The keyframes keep each element's positioning transform intact. */
+@keyframes signal-settle {
+  from {
+    opacity: 0;
+    transform: translate(-50%, calc(-50% + 10px));
+    filter: blur(2px);
+  }
+  to {
+    opacity: 1;
+    transform: translate(-50%, -50%);
+    filter: none;
+  }
+}
+
+@keyframes axis-settle {
+  from {
+    opacity: 0;
+    transform: translateY(calc(-50% + 8px));
+  }
+  to {
+    opacity: 1;
+    transform: translateY(-50%);
+  }
+}
+
+@keyframes tether-settle {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+.world--changed .signal {
+  animation: signal-settle 0.4s cubic-bezier(0.2, 0.7, 0.2, 1) both;
+}
+
+.world--changed .axis-signal {
+  animation: axis-settle 0.4s cubic-bezier(0.2, 0.7, 0.2, 1) both;
+}
+
+.world--changed .field-tether {
+  animation: tether-settle 0.6s ease both;
+}
+
+.world--changed .signal[data-reach='metro'] {
+  animation-delay: 0.05s;
+}
+
+.world--changed .signal[data-reach='region'] {
+  animation-delay: 0.1s;
+}
+
+:root[data-motion='reduced'] .world--changed .signal,
+:root[data-motion='reduced'] .world--changed .axis-signal,
+:root[data-motion='reduced'] .world--changed .field-tether {
+  animation: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .center-pulse {
+    animation: none;
+    opacity: 0.35;
+  }
+
+  .world--changed .signal,
+  .world--changed .axis-signal,
+  .world--changed .field-tether {
+    animation: none;
+  }
+}
+
+/* -------------------------------------------- signal field, narrow view */
+
+@media (max-width: 860px) {
+  .field {
+    grid-template-rows: auto auto auto auto;
+  }
+
+  /* Radial cap, then a vertical run of signals by reach. Nothing overflows. */
+  .field-stage {
+    display: flex;
+    flex-direction: column;
+    gap: 0.6rem;
+    padding: 0.8rem 0.9rem 1.2rem;
+    overflow: visible;
+    min-height: 0;
+    height: auto;
+  }
+
+  .field-plot {
+    position: static;
+    display: flex;
+    flex-direction: column;
+    width: 100%;
+    min-width: 0;
+  }
+
+  .field-geometry,
+  .field-map-frame,
+  .ring-labels {
+    display: none;
+  }
+
+  .local-news-rail {
+    display: none;
+  }
+
+  .signal[data-display='rail'] .signal-label {
+    display: inline-flex;
+    opacity: 1;
+  }
+
+  .field-instrument-rail {
+    position: static;
+    order: 0;
+    display: flex;
+    flex-wrap: wrap;
+    padding: 0;
+    border: 0;
+    background: transparent;
+    box-shadow: none;
+  }
+
+  .layer-controls {
+    width: 100%;
+  }
+
+  .field-statusline {
+    width: 100%;
+    text-align: left;
+    white-space: normal;
+  }
+
+  .field-center {
+    position: relative;
+    left: auto;
+    top: auto;
+    transform: none;
+    padding: 1.6rem 0 1.4rem;
+    margin-bottom: 0.4rem;
+    border-bottom: 1px solid rgba(150, 190, 255, 0.16);
+  }
+
+  .center-pulse {
+    left: 50%;
+    top: 2.6rem;
+  }
+
+  .center-place {
+    min-height: var(--tap);
+    padding: 0 0.8rem;
+  }
+
+  .signal {
+    position: static;
+    width: 100%;
+    min-height: var(--tap);
+    transform: none;
+    padding: 0.55rem 0.2rem;
+    border-bottom: 1px solid rgba(150, 190, 255, 0.1);
+  }
+
+  /* The radial settle would fight a static list, so the phone stays still. */
+  .world--changed .signal,
+  .world--changed .axis-signal {
+    animation: none;
+  }
+
+  .signal[data-place] {
+    flex-direction: row;
+    gap: 0.6rem;
+    align-items: center;
+  }
+
+  .signal[data-place] .signal-label {
+    text-align: left;
+  }
+
+  .signal-label {
+    flex: 1 1 auto;
+    max-width: none;
+    background: none;
+    border: 0;
+    padding: 0;
+    transform: none;
+    backdrop-filter: none;
+    -webkit-backdrop-filter: none;
+  }
+
+  .signal[data-detail='low'] .signal-meta {
+    display: block;
+  }
+
+  .signal-short {
+    font-size: 0.95rem;
+  }
+
+  .signal::after {
+    content: attr(data-reach);
+    flex: 0 0 auto;
+    font-family: var(--font-meta);
+    font-size: 0.52rem;
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+    color: rgba(200, 216, 240, 0.45);
+  }
+
+  .market-axis {
+    position: static;
+    width: 100%;
+    padding: 0.9rem 0 0;
+    border-top: 1px solid rgba(255, 209, 102, 0.24);
+  }
+
+  .axis-spine {
+    display: none;
+  }
+
+  .axis-list {
+    position: static;
+    display: grid;
+    gap: 0.7rem;
+    margin-top: 0.6rem;
+  }
+
+  .axis-signal {
+    position: static;
+    transform: none;
+    left: auto;
+    right: auto;
+    top: auto;
+  }
+
+  .briefing {
+    position: sticky;
+    bottom: 0;
+    z-index: 9;
+  }
+
+  .clarify-choices {
+    flex-direction: column;
+  }
+
+  /* Stacked choices are rows, not slabs: they must not grow to fill. */
+  .clarify-choices .choice-card {
+    flex: 0 0 auto;
+    min-height: var(--tap);
+    padding: 0.75rem 1rem;
+  }
+
+  .field-controls > * {
+    flex: 1 1 100%;
+  }
+}
+
+/* --------------------------------------------------------------- motion */
+
+
+@keyframes settle {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+    filter: blur(2px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+    filter: none;
+  }
+}
+
+.world--changed .segment-band,
+.world--changed .segment-range,
+.world--changed .travel-block,
+.world--changed .landing-marker {
+  animation: settle 0.42s cubic-bezier(0.2, 0.7, 0.2, 1) both;
+}
+
+.world--changed .segment:nth-child(2) .segment-band,
+.world--changed .segment:nth-child(2) .segment-range {
+  animation-delay: 0.05s;
+}
+.world--changed .segment:nth-child(3) .segment-band,
+.world--changed .segment:nth-child(3) .segment-range {
+  animation-delay: 0.1s;
+}
+.world--changed .segment:nth-child(4) .segment-band,
+.world--changed .segment:nth-child(4) .segment-range {
+  animation-delay: 0.15s;
+}
+.world--changed .segment:nth-child(5) .segment-band,
+.world--changed .segment:nth-child(5) .segment-range {
+  animation-delay: 0.2s;
+}
+
+:root[data-motion='reduced'] .world--changed .segment-band,
+:root[data-motion='reduced'] .world--changed .segment-range,
+:root[data-motion='reduced'] .world--changed .travel-block,
+:root[data-motion='reduced'] .world--changed .landing-marker {
+  animation: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .world--changed .segment-band,
+  .world--changed .segment-range,
+  .world--changed .travel-block,
+  .world--changed .landing-marker {
+    animation: none;
+  }
+  * {
+    transition-duration: 0.01ms !important;
+  }
+}
+
+/* ------------------------------------------------------------ responsive */
+
+@media (max-width: 860px) {
+  .terrain {
+    grid-template-rows: auto auto auto auto auto;
+  }
+
+  /*
+   * On a phone the world is a vertical timeline, so the condition labels stop
+   * being anchored marks and become ordinary rows — still one line each, still
+   * attached to the thing they describe.
+   */
+  .condition-label {
+    position: static;
+    max-width: 100%;
+    white-space: normal;
+    margin: 0.4rem 0 0;
+  }
+
+  .lane--you .lane-track {
+    display: grid;
+    gap: 0.35rem;
+    height: auto;
+    min-height: 0;
+  }
+
+  .lane--you .travel-block {
+    position: static;
+    width: 100%;
+    height: auto;
+    padding: 0.4rem 0.5rem;
+  }
+
+  .lane--you .travel-text {
+    white-space: normal;
+  }
+
+  .traffic-layer {
+    left: 0.9rem;
+    right: 0.9rem;
+    bottom: 4.2rem;
+    height: 6rem;
+    mask-image: none;
+  }
+
+  .world-foot {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .world {
+    padding: 0.9rem 0.9rem 1.2rem;
+  }
+
+  /* Vertical timeline: time reads top to bottom, nothing overflows sideways. */
+  .world-overlay,
+  .axis,
+  .now-rule,
+  .landing-marker,
+  .legend {
+    position: static;
+  }
+
+  .world-overlay {
+    pointer-events: auto;
+  }
+
+  .axis {
+    display: none;
+  }
+
+  .now-rule {
+    width: auto;
+    height: auto;
+    display: flex;
+    gap: 0.6rem;
+    align-items: baseline;
+    padding-bottom: 0.5rem;
+    border-bottom: 1px solid var(--line-strong);
+    background: none;
+  }
+
+  .now-flag,
+  .now-time {
+    position: static;
+  }
+
+  .landing-marker {
+    margin: 0.6rem 0 0;
+  }
+
+  .lane--pipeline {
+    position: relative;
+    padding-left: 0.9rem;
+    gap: 0.7rem;
+  }
+
+  .lane--pipeline::before {
+    content: '';
+    position: absolute;
+    left: 2px;
+    top: 6px;
+    bottom: 6px;
+    width: 1px;
+    background: linear-gradient(180deg, var(--observed), var(--modeled), var(--unknown));
+    opacity: 0.55;
+  }
+
+  .segment,
+  .lane--you {
+    grid-template-columns: 1fr;
+    gap: 0.3rem;
+  }
+
+  .segment-info {
+    border-right: 0;
+    padding-right: 0;
+  }
+
+  .segment-track,
+  .lane-track {
+    height: 44px;
+  }
+
+  .lane-track--ask {
+    height: auto;
+    flex-direction: column;
+    align-items: stretch;
+    gap: 0.6rem;
+  }
+
+  .segment-band,
+  .travel-block {
+    left: 0;
+    width: 100%;
+    top: 18px;
+    bottom: 0;
+    height: auto;
+  }
+
+  .segment-range {
+    left: 0;
+    top: 0;
+    padding-left: 0;
+  }
+
+  .segment-label,
+  .segment-method {
+    white-space: normal;
+  }
+
+  .lot-marker {
+    position: static;
+    transform: none;
+    margin-top: 0.6rem;
+  }
+
+  .legend {
+    flex-wrap: wrap;
+    margin-top: 0.9rem;
+  }
+
+  .envelope {
+    position: sticky;
+    bottom: 0;
+    z-index: 5;
+  }
+
+  .terrain-controls > * {
+    flex: 1 1 100%;
+  }
+}
+
+/* ------------------------------------------------- depth against the field */
+
+/*
+ * With a computed atmosphere underneath, the semantic geometry needs a little
+ * more body so it reads as sitting *on* the field rather than floating in it.
+ * These are shadows and glow on elements that already exist — no new chrome,
+ * no glass cards, and nothing that changes what anything means.
+ */
+.segment-band,
+.travel-block {
+  box-shadow: 0 10px 26px -14px rgba(0, 0, 0, 0.9);
+}
+
+.segment[data-truth='observed'] .segment-band {
+  box-shadow:
+    0 10px 26px -14px rgba(0, 0, 0, 0.9),
+    0 0 22px -6px rgba(79, 240, 192, 0.45);
+}
+
+.segment[data-truth='modeled'] .segment-band {
+  box-shadow:
+    0 10px 26px -14px rgba(0, 0, 0, 0.9),
+    0 0 22px -8px rgba(242, 179, 92, 0.4);
+}
+
+.now-rule {
+  box-shadow: 0 0 18px rgba(240, 232, 220, 0.28);
+}
+
+.field-ring {
+  filter: drop-shadow(0 0 6px rgba(150, 195, 255, 0.35));
+}
+
+.field-ring[data-ring='immediate'] {
+  filter: drop-shadow(0 0 10px rgba(190, 225, 255, 0.55));
+}
+
+.field-tether {
+  filter: drop-shadow(0 0 5px rgba(150, 195, 255, 0.3));
+}
+
+/* Micro-motion, tied to a real change in the world — never idle decoration. */
+@keyframes fx-settle {
+  from {
+    opacity: 0.55;
+    transform: translateY(2px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+.world--changed .segment-band,
+.world--changed .field-ring,
+.world--changed .signal-dot {
+  animation: fx-settle 520ms cubic-bezier(0.22, 0.61, 0.36, 1) both;
+}
+
+:root[data-motion='reduced'] .world--changed .segment-band,
+:root[data-motion='reduced'] .world--changed .field-ring,
+:root[data-motion='reduced'] .world--changed .signal-dot {
+  animation: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .world--changed .segment-band,
+  .world--changed .field-ring,
+  .world--changed .signal-dot {
+    animation: none;
+  }
+}
+
+/* ============================================================ JOURNEY WORLD */
+
+/*
+ * The generated template for an airport pickup: one time-and-space world.
+ *
+ * The route plane is the dominant object, the arrival-processing terrain is a
+ * compressed strip linked beneath it, and the warm decision envelope still
+ * wins the page. Nothing here is a card, a tile, or a dashboard panel — the
+ * map *is* the layout engine, exactly as the terrain is in the Timeline lens.
+ */
+
+.terrain[data-lens='journey'] {
+  grid-template-rows: auto minmax(300px, 1fr) auto auto auto auto;
+}
+
+.terrain[data-lens='timeline'] {
+  grid-template-rows: auto minmax(240px, 1fr) auto auto auto;
+}
+
+/* ------------------------------------------------------------ lens switch */
+
+.lens-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.4rem 0.6rem;
+}
+
+.lens-button {
+  min-height: 0;
+  padding: 0.24rem 0.72rem;
+  border: 1px solid var(--line-strong);
+  background: transparent;
+  color: var(--bone-dim);
+  font-family: var(--font-meta);
+  font-size: 0.66rem;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  cursor: pointer;
+}
+
+.lens-button[aria-pressed='true'] {
+  border-color: rgba(79, 240, 192, 0.7);
+  background: rgba(79, 240, 192, 0.12);
+  color: var(--observed);
+}
+
+.lens-button:hover,
+.lens-button:focus-visible {
+  color: var(--bone);
+}
+
+.lens-note {
+  font-family: var(--font-meta);
+  font-size: 0.62rem;
+  letter-spacing: 0.06em;
+  color: var(--bone-faint);
+}
+
+/* --------------------------------------------------------- the map plane */
+
+.journey-map {
+  position: relative;
+  min-height: 0;
+  overflow: hidden;
+  isolation: isolate;
+  display: grid;
+  grid-template-rows: 1fr auto;
+  border: 0;
+  background:
+    radial-gradient(120% 90% at 62% 78%, rgba(79, 240, 192, 0.10), transparent 66%),
+    radial-gradient(140% 130% at 40% 20%, rgba(24, 34, 44, 0.95), rgba(8, 10, 12, 0.98) 76%);
+}
+
+/*
+ * The frame owns the map's box. The plane and its labels are both absolutely
+ * positioned inside it, so an SVG's intrinsic aspect ratio can never push the
+ * row taller than the screen, and a marker at 40% is 40% of the *plane*.
+ */
+.map-frame {
+  grid-area: 1 / 1;
+  position: relative;
+  /*
+   * The base is real geography now, so the box has to be tall enough for a
+   * twenty-mile corridor to read as a corridor rather than as a letterbox
+   * slot. It still yields to the foot, which is in normal flow.
+   */
+  min-height: clamp(300px, 40vh, 520px);
+  overflow: hidden;
+}
+
+.map-plane {
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+}
+
+/*
+ * The Bing Maps base.
+ *
+ * It fills the frame and stays *readable as geography* — streets, water,
+ * interchanges — while a single wash above it pulls the palette back toward
+ * the world's own ink so the overlays keep their contrast. The filter is
+ * deliberately gentle: darken and desaturate, never blur, because the point of
+ * this layer is that a person recognises where they are.
+ *
+ * Stacking inside the frame, bottom to top: base (0) · GPU atmosphere (1) ·
+ * wash (1, later in DOM) · CanvasBrowser's SVG annotation (2) · labels (3).
+ */
+.journey-map > .fx-canvas {
+  z-index: 1;
+  /* The atmosphere sits over real geography now, so it is a tint, not a wall. */
+  opacity: 0.45;
+}
+
+.map-base {
+  position: absolute;
+  top: 0;
+  left: 0;
+  z-index: 0;
+  width: 1200px;
+  border: 0;
+  transform-origin: top left;
+  transform: scale(var(--base-scale, 1));
+  filter: saturate(0.78) contrast(1.03) brightness(0.9);
+  /*
+   * The overlay is projected against this exact viewport. Bing is cross-origin,
+   * so a pan or zoom cannot be observed and re-projected safely. Keep the base
+   * static; the adjacent full-map handoff owns all map interaction.
+   */
+  pointer-events: none;
+}
+
+/*
+ * The wash stops short of the bottom edge, because that strip is where Bing
+ * puts its logo and its attribution, and covering those would be both rude and
+ * wrong. Everything above it gets a cool, even tint.
+ */
+.map-wash {
+  position: absolute;
+  inset: 0 0 30px 0;
+  z-index: 1;
+  background:
+    radial-gradient(120% 90% at 62% 78%, rgba(6, 24, 24, 0.22), transparent 70%),
+    linear-gradient(180deg, rgba(6, 12, 16, 0.30), rgba(6, 10, 12, 0.16) 60%, rgba(6, 10, 12, 0.08));
+  pointer-events: none;
+}
+
+/*
+ * With a real base under it, CanvasBrowser's own relief is annotation and
+ * fades right down. When the base cannot load it comes back to full strength
+ * and the world says so in the foot — an illustrative overlay, clearly named.
+ */
+.journey-map .map-land {
+  opacity: 0.22;
+  transition: opacity 240ms ease;
+}
+
+.journey-map[data-base-state='unavailable'] .map-land {
+  opacity: 1;
+}
+
+/*
+ * With a live base the relief and the graticule are gone entirely. They were
+ * scenery for a plane that had no geography under it; over real streets they
+ * are lines that mean nothing, and lines that mean nothing are exactly what
+ * this world is not allowed to draw.
+ */
+.journey-map[data-overlay-projection='bing'] .map-land {
+  display: none;
+}
+
+.journey-map[data-base-state='unavailable'] .map-base,
+.journey-map[data-base-state='unavailable'] .map-wash {
+  display: none;
+}
+
+/* The base names itself, and hands off to the real map in a real tab. */
+.map-base-note {
+  margin: 0;
+  font-family: var(--font-meta);
+  font-size: 0.6rem;
+  letter-spacing: 0.06em;
+  color: var(--bone-faint);
+}
+
+.map-base-open {
+  color: var(--observed);
+}
+
+.journey-map[data-base-state='unavailable'] .map-base-live,
+.map-base-down {
+  display: none;
+}
+
+.journey-map[data-base-state='unavailable'] .map-base-down {
+  display: inline;
+  color: var(--modeled);
+}
+
+/*
+ * The foot is the one part of this surface in normal flow: it takes the
+ * second row, and the map above it gets whatever height is left.
+ */
+.map-foot {
+  grid-area: 2 / 1;
+}
+
+.map-ground {
+  fill: rgba(18, 26, 26, 0.5);
+}
+
+.map-relief {
+  fill: rgba(58, 96, 88, 0.16);
+  stroke: rgba(120, 200, 180, 0.14);
+  stroke-width: 0.6;
+  vector-effect: non-scaling-stroke;
+}
+
+.map-relief--3 {
+  fill: none;
+  stroke: rgba(120, 200, 180, 0.20);
+  stroke-dasharray: 3 5;
+}
+
+.map-graticule {
+  fill: none;
+  stroke: rgba(240, 232, 220, 0.06);
+  stroke-width: 1;
+  vector-effect: non-scaling-stroke;
+}
+
+/* ------------------------------------------------------------ route paths */
+
+/*
+ * Whose route — and whose traffic — is on screen.
+ *
+ * With a live base the geography is Bing's, and so is the route: the handoff
+ * opens `bing.com/maps` with the same two coordinates, where Bing draws the
+ * routed line, its alternates and live congestion. The framed endpoint itself
+ * renders geography only, and CanvasBrowser does not fill that gap with a
+ * corridor of its own — a hand-authored line over real streets claims a road
+ * the drive does not take, and a hand-authored congestion band claims a delay
+ * nobody measured. Both were exactly what made the aligned map misleading, so
+ * the whole illustrative route apparatus goes: casing, alternate, congestion
+ * bands and direction particles.
+ *
+ * What CanvasBrowser keeps above the base is what it genuinely knows and Bing
+ * is not showing: the weather cell, the airport and disruption markers, NOW,
+ * and the time labels — annotation on real coordinates, never a route.
+ *
+ * When the base cannot load there is no real geography to be wrong about, and
+ * the illustrative corridor comes back as the only route there is.
+ */
+.journey-map[data-route-source='bing'] .route-loads,
+.journey-map[data-route-source='bing'] .route-flow-layer {
+  display: none;
+}
+
+.route-path {
+  fill: none;
+  vector-effect: non-scaling-stroke;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.route-path--main {
+  stroke: rgba(6, 12, 12, 0.92);
+  stroke-width: 9;
+  filter: drop-shadow(0 0 10px rgba(0, 0, 0, 0.6));
+  transition: d 600ms ease;
+}
+
+.route-path--alternate {
+  stroke: rgba(143, 166, 184, 0.34);
+  stroke-width: 1.6;
+  stroke-dasharray: 5 5;
+}
+
+/*
+ * Congestion is drawn *on the route itself*, stretch by stretch: the casing
+ * above is the road, and this is the traffic in it. A free corridor reads
+ * mint, a jammed one reads amber, an incident-grade one reads red — and the
+ * width grows with the load, so density is legible without reading a key.
+ */
+.route-load {
+  fill: none;
+  vector-effect: non-scaling-stroke;
+  stroke-linecap: round;
+  stroke-width: calc(4px + var(--load, 0) * 6px);
+  opacity: calc(0.62 + var(--load, 0) * 0.38);
+  filter: drop-shadow(0 0 6px currentColor);
+}
+
+.route-load[data-level='light'] {
+  color: rgba(79, 240, 192, 0.5);
+  stroke: rgba(79, 240, 192, 0.9);
+}
+
+.route-load[data-level='moderate'] {
+  color: rgba(214, 224, 120, 0.5);
+  stroke: rgba(222, 226, 130, 0.95);
+}
+
+.route-load[data-level='heavy'] {
+  color: rgba(242, 179, 92, 0.6);
+  stroke: rgba(242, 179, 92, 1);
+}
+
+.route-load[data-level='severe'] {
+  color: rgba(255, 93, 74, 0.6);
+  stroke: rgba(255, 93, 74, 1);
+}
+
+/*
+ * Direction particles: they travel the route, at the speed traffic allows.
+ * They are drawn only while there is traffic to move, so this animation always
+ * means the same thing — vehicles are on your corridor right now.
+ */
+.route-flow {
+  fill: none;
+  stroke: rgba(240, 232, 220, 0.10);
+  stroke-width: 1;
+  vector-effect: non-scaling-stroke;
+  stroke-dasharray: 2 6;
+  animation: route-drift var(--flow-speed, 7s) linear infinite;
+}
+
+@keyframes route-drift {
+  to {
+    stroke-dashoffset: -80;
+  }
+}
+
+/*
+ * There are no decorative particles on this route. A dot that pulses on a
+ * corridor says nothing a person can act on, so the drifting dash above is the
+ * whole of the traffic motion: one line, one meaning — vehicles are moving.
+ */
+
+
+/* ---------------------------------------------------------- weather cell */
+
+/*
+ * The weather cell is always drawn while the layer is on — a clear sky over
+ * SEA is information. It only *moves* once the projection is actually wet or
+ * windy enough to see, which is what `data-active` records.
+ */
+.map-weather .weather-cell {
+  fill: rgba(120, 175, 255, calc(0.06 + var(--intensity, 0) * 0.16));
+  stroke: rgba(168, 208, 255, calc(0.45 + var(--intensity, 0) * 0.45));
+  stroke-width: 1.4;
+  vector-effect: non-scaling-stroke;
+  stroke-dasharray: 4 3;
+}
+
+.map-weather[data-active='true'] .weather-cell {
+  animation: weather-breathe 9s ease-in-out infinite;
+}
+
+.map-weather .weather-core {
+  fill: rgba(120, 175, 255, calc(0.06 + var(--intensity, 0) * 0.18));
+  stroke: none;
+}
+
+.map-weather[data-kind='clear'] .weather-cell,
+.map-weather[data-kind='cloud'] .weather-cell {
+  stroke-dasharray: 1 5;
+}
+
+.map-weather .weather-wind {
+  stroke: rgba(189, 220, 255, calc(0.3 + var(--intensity, 0) * 0.5));
+  stroke-width: 1.2;
+  vector-effect: non-scaling-stroke;
+  stroke-linecap: round;
+}
+
+@keyframes weather-breathe {
+  0%,
+  100% {
+    opacity: 0.65;
+  }
+  50% {
+    opacity: 1;
+  }
+}
+
+/*
+ * The refresh scan.
+ *
+ * It exists in the DOM only while the next check is due or overdue, so its
+ * speed no longer encodes a cadence — a 5, 15 or 60 minute policy is said in
+ * words and drained on the dial. One fixed sweep, meaning "look now".
+ */
+.map-scan {
+  fill: none;
+  stroke: rgba(79, 240, 192, 0.45);
+  stroke-width: 0.7;
+  vector-effect: non-scaling-stroke;
+  transform-origin: center;
+  animation: map-scan 2.6s ease-out infinite;
+}
+
+@keyframes map-scan {
+  0% {
+    r: 4;
+    opacity: 0.7;
+  }
+  100% {
+    r: 92;
+    opacity: 0;
+  }
+}
+
+/* ---------------------------------------------------------- map furniture */
+
+.map-overlay {
+  position: absolute;
+  inset: 0;
+  z-index: 3;
+  min-height: 0;
+  pointer-events: none;
+}
+
+.map-marker,
+.map-note,
+.map-now {
+  position: absolute;
+  left: var(--x, 50%);
+  top: var(--y, 50%);
+  display: flex;
+  align-items: flex-start;
+  gap: 0.35rem;
+  max-width: min(26ch, 30%);
+  transform: translate(0.55rem, -0.35rem);
+  /*
+   * Labels are readable, not clickable. Only the controls inside them take
+   * pointer events, so an overlapping label can never swallow the click that
+   * removes a stop.
+   */
+  pointer-events: none;
+}
+
+.map-note[data-kind='disruption'],
+.map-note[data-kind='airport'] {
+  max-width: min(40ch, 42%);
+}
+
+.map-marker[data-kind='stop'] {
+  z-index: 3;
+}
+
+.map-marker-remove {
+  pointer-events: auto;
+}
+
+.map-marker[data-side='left'],
+.map-note[data-side='left'] {
+  transform: translate(calc(-100% - 0.55rem), -0.35rem);
+  text-align: right;
+}
+
+.map-marker[data-side='left'] .map-note-body,
+.map-note[data-side='left'] .map-note-body {
+  border-left: 0;
+  border-right: 2px solid var(--modeled);
+}
+
+/* Geometry lives in the SVG; these are the dots and their leader lines. */
+.map-anchor {
+  fill: var(--modeled);
+  stroke: rgba(8, 10, 11, 0.9);
+  stroke-width: 0.6;
+  vector-effect: non-scaling-stroke;
+}
+
+.map-anchor--lot {
+  fill: var(--observed);
+  filter: drop-shadow(0 0 4px rgba(79, 240, 192, 0.9));
+}
+
+.map-anchor--curb {
+  fill: var(--bone);
+}
+
+.map-anchor--origin {
+  fill: var(--inferred);
+}
+
+.map-anchor--stop {
+  fill: rgba(255, 158, 196, 0.95);
+}
+
+.map-anchor--note {
+  fill: rgba(143, 166, 184, 0.85);
+}
+
+.map-anchor--disruption {
+  fill: var(--tripwire);
+  filter: drop-shadow(0 0 5px rgba(255, 93, 74, 0.9));
+}
+
+.map-leader {
+  stroke: rgba(240, 232, 220, 0.28);
+  stroke-width: 1;
+  stroke-dasharray: 2 2;
+  vector-effect: non-scaling-stroke;
+}
+
+.map-marker-body,
+.map-note-body {
+  display: grid;
+  gap: 0.08rem;
+  padding: 0.2rem 0.45rem;
+  background: rgba(8, 10, 11, 0.62);
+  backdrop-filter: blur(2px);
+}
+
+.map-marker-label,
+.map-note-label {
+  font-family: var(--font-display);
+  font-size: 0.78rem;
+  font-weight: 500;
+  letter-spacing: -0.01em;
+  color: var(--bone);
+}
+
+.map-marker[data-kind='lot'] .map-marker-label {
+  color: var(--observed);
+}
+
+.map-marker-detail,
+.map-note-detail {
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  font-family: var(--font-meta);
+  font-size: 0.58rem;
+  line-height: 1.3;
+  letter-spacing: 0.02em;
+  color: var(--bone-dim);
+}
+
+.map-note[data-kind='disruption'] .map-note-detail,
+.map-note[data-kind='airport'] .map-note-detail {
+  -webkit-line-clamp: 3;
+}
+
+.map-marker-remove {
+  justify-self: start;
+  font-size: 0.56rem;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+
+.map-note-body {
+  border-left: 2px solid var(--modeled);
+}
+
+.map-note[data-kind='disruption'] .map-note-body {
+  border-left-color: var(--tripwire);
+  animation: note-alert 2.2s ease-in-out infinite;
+}
+
+.map-note[data-kind='rule'] .map-note-body {
+  border-left-color: var(--inferred);
+}
+
+@keyframes note-alert {
+  0%,
+  100% {
+    opacity: 0.7;
+  }
+  50% {
+    opacity: 1;
+  }
+}
+
+.live-tag {
+  justify-self: start;
+  padding: 0.05rem 0.32rem;
+  border: 1px solid rgba(143, 166, 184, 0.5);
+  color: var(--inferred);
+  font-family: var(--font-meta);
+  font-size: 0.5rem;
+  letter-spacing: 0.14em;
+}
+
+/*
+ * NOW is a point on the route, not a column on an axis — and a position
+ * indicator, so it holds still. It is where you are; it is not an alarm.
+ */
+.map-now {
+  align-items: center;
+}
+
+.map-now-dot {
+  width: 13px;
+  height: 13px;
+  border-radius: 50%;
+  background: var(--observed);
+  box-shadow: 0 0 0 4px rgba(79, 240, 192, 0.18), 0 0 18px rgba(79, 240, 192, 0.9);
+}
+
+.map-now-label {
+  font-family: var(--font-meta);
+  font-size: 0.58rem;
+  letter-spacing: 0.16em;
+  color: var(--observed);
+}
+
+.map-stamp {
+  position: absolute;
+  right: clamp(0.6rem, 1.6vw, 1.4rem);
+  top: clamp(0.5rem, 1.4vw, 1rem);
+  margin: 0;
+  display: grid;
+  justify-items: end;
+  gap: 0.1rem;
+  padding: 0.15rem 0.4rem;
+  /* The base beneath is a light road map, so the stamps carry their own ink. */
+  background: rgba(8, 10, 11, 0.55);
+  font-family: var(--font-meta);
+  font-size: 0.6rem;
+  letter-spacing: 0.22em;
+  color: var(--modeled);
+  text-transform: uppercase;
+  pointer-events: none;
+}
+
+.map-stamp-note {
+  font-size: 0.52rem;
+  letter-spacing: 0.06em;
+  text-transform: none;
+  color: var(--bone-dim);
+}
+
+.map-weather-label {
+  position: absolute;
+  left: clamp(0.6rem, 1.6vw, 1.4rem);
+  top: clamp(0.5rem, 1.4vw, 1rem);
+  margin: 0;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.15rem 0.4rem;
+  background: rgba(8, 10, 11, 0.55);
+  font-family: var(--font-meta);
+  font-size: 0.62rem;
+  letter-spacing: 0.05em;
+  color: rgba(190, 220, 255, 0.95);
+  pointer-events: none;
+}
+
+/* --------------------------------------------------------------- map foot */
+
+.map-foot {
+  position: relative;
+  z-index: 4;
+  display: grid;
+  gap: 0.45rem;
+  padding: 0.6rem clamp(0.6rem, 1.6vw, 1.4rem) 0.7rem;
+  background: linear-gradient(180deg, rgba(6, 8, 9, 0) 0%, rgba(6, 8, 9, 0.82) 34%);
+}
+
+.route-legend {
+  display: grid;
+  gap: 0.25rem;
+}
+
+/*
+ * Two legends, one truth at a time.
+ *
+ * The live variant names the route's source and hands off; the fallback names
+ * the SAMPLE corridor CanvasBrowser drew itself. `data-route-source` — set by
+ * the same alignment pass that decides whether the overlay route is drawn at
+ * all — picks between them, so the words under the map can never describe a
+ * line that is not on it. Fixture road names and fixture distances exist in
+ * exactly one of the two, and it is the one with no Bing route above it.
+ */
+.route-legend-variant {
+  display: none;
+  gap: 0.25rem;
+}
+
+.journey-map[data-route-source='bing'] .route-legend-variant--live,
+.journey-map[data-route-source='bing'] .route-legend-variant--fallback,
+.journey-map[data-route-source='overlay'] .route-legend-variant--fallback {
+  display: grid;
+}
+
+.route-line {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  margin: 0;
+  font-family: var(--font-meta);
+  font-size: 0.66rem;
+  letter-spacing: 0.05em;
+  color: var(--bone-dim);
+}
+
+.route-line--handoff {
+  color: var(--observed);
+  text-decoration: none;
+  border-bottom: 1px solid rgba(79, 240, 192, 0.3);
+  justify-self: start;
+}
+
+.route-line--handoff:hover,
+.route-line--handoff:focus-visible {
+  border-bottom-color: var(--observed);
+}
+
+/*
+ * The disclosure. It is not a disclaimer bolted on: it is the one sentence
+ * that makes the screenshot comparable with Bing's own map — same route
+ * source, different job — and it states exactly which half of the world is
+ * still a sample.
+ */
+.route-disclosure {
+  margin: 0;
+  font-family: var(--font-meta);
+  font-size: 0.58rem;
+  letter-spacing: 0.04em;
+  line-height: 1.5;
+  color: var(--bone-faint);
+}
+
+.route-swatch {
+  width: 22px;
+  height: 3px;
+  border-radius: 2px;
+}
+
+.route-swatch--main {
+  background: var(--observed);
+  box-shadow: 0 0 8px rgba(79, 240, 192, 0.6);
+}
+
+/* The live route line keys nothing on the plane, so it starts at the margin. */
+.route-line--bing {
+  color: var(--bone);
+}
+
+.route-swatch--alternate {
+  background: repeating-linear-gradient(90deg, var(--inferred) 0 4px, transparent 4px 8px);
+}
+
+.leg-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.2rem 1.1rem;
+  margin: 0.15rem 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.leg {
+  display: flex;
+  align-items: baseline;
+  gap: 0.4rem;
+  font-family: var(--font-meta);
+  font-size: 0.6rem;
+  letter-spacing: 0.03em;
+  color: var(--bone-faint);
+}
+
+.leg-label {
+  color: var(--bone-dim);
+}
+
+.leg[data-level='heavy'] .leg-meta,
+.leg[data-level='severe'] .leg-meta {
+  color: var(--modeled);
+}
+
+/* ---------------------------------------------------------------- stops */
+
+.stop-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.35rem 0.5rem;
+}
+
+.stop-row-label {
+  font-family: var(--font-meta);
+  font-size: 0.6rem;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--bone-faint);
+}
+
+.stop-chip {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 0.4rem;
+  min-height: 0;
+  padding: 0.22rem 0.6rem;
+  border: 1px dashed rgba(255, 158, 196, 0.5);
+  background: rgba(255, 158, 196, 0.07);
+  color: var(--bone);
+  font-family: var(--font-body);
+  font-size: 0.74rem;
+  cursor: pointer;
+}
+
+.stop-chip:hover,
+.stop-chip:focus-visible {
+  border-style: solid;
+  background: rgba(255, 158, 196, 0.14);
+}
+
+.stop-chip[aria-pressed='true'] {
+  border-style: solid;
+  border-color: rgba(255, 158, 196, 0.9);
+}
+
+.stop-chip-cost {
+  font-family: var(--font-meta);
+  font-size: 0.58rem;
+  color: rgba(255, 158, 196, 0.9);
+}
+
+.stop-row-note {
+  flex: 1 1 22ch;
+  font-family: var(--font-meta);
+  font-size: 0.56rem;
+  letter-spacing: 0.03em;
+  color: var(--bone-faint);
+}
+
+.map-handoff {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.3rem 1rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  font-size: 0.68rem;
+}
+
+/* ------------------------------------------------- the spatial gap, stated */
+
+.origin-picker--map {
+  max-width: 62ch;
+  padding: 0.7rem 0.9rem;
+  border: 1px dashed rgba(143, 166, 184, 0.4);
+  background: rgba(10, 12, 14, 0.72);
+}
+
+.origin-why {
+  margin: 0.15rem 0 0;
+  font-family: var(--font-meta);
+  font-size: 0.62rem;
+  letter-spacing: 0.03em;
+  color: var(--observed);
+}
+
+.journey-map[data-route='unknown'] .map-plane {
+  opacity: 0.55;
+}
+
+/* ------------------------------------------- the linked arrival-time strip */
+
+.world--strip {
+  padding: 1.8rem var(--plot-pad) 0.5rem;
+  gap: 0.18rem;
+}
+
+.world--strip .strip-title {
+  position: absolute;
+  left: var(--plot-pad);
+  top: 0.45rem;
+  margin: 0;
+  font-family: var(--font-meta);
+  font-size: 0.58rem;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--bone-faint);
+  z-index: 5;
+}
+
+/* The strip is the same terrain, compressed: fewer words, the same geometry. */
+.world--strip .segment-label {
+  font-size: 0.78rem;
+}
+
+.world--strip .segment-range {
+  font-size: 0.56rem;
+}
+
+.world--strip .segment {
+  min-height: 0;
+}
+
+.world--strip .segment-track {
+  height: 1.15rem;
+}
+
+.world--strip .segment-info {
+  gap: 0;
+}
+
+.world--strip .segment-method,
+.world--strip .lane--you .segment-method {
+  display: none;
+}
+
+.world--strip .legend {
+  display: none;
+}
+
+.world--strip .axis {
+  opacity: 0.6;
+}
+
+.world--strip .lane--you .lane-track {
+  height: 1.6rem;
+  min-height: 0;
+}
+
+/* -------------------------------------------- question economics, on screen */
+
+.situation-block {
+  display: grid;
+  gap: 0.2rem;
+}
+
+.assumption-why {
+  margin: 0;
+  font-family: var(--font-meta);
+  font-size: 0.63rem;
+  letter-spacing: 0.03em;
+  color: var(--modeled);
+}
+
+.clarify-reason {
+  margin: 0.1rem 0 0.9rem;
+  max-width: 56ch;
+  font-family: var(--font-meta);
+  font-size: 0.68rem;
+  letter-spacing: 0.02em;
+  color: var(--observed);
+}
+
+/* -------------------------------- the Journey lens, on one screen */
+
+/*
+ * Journey is a one-screen composition, so the parts around the map are asked
+ * to be efficient with height: the motion legend runs as a single flexible
+ * line rather than a paragraph, and the envelope keeps its dominance through
+ * type and colour rather than through padding.
+ */
+.terrain[data-lens='journey'] .world-foot {
+  flex-wrap: nowrap;
+  align-items: baseline;
+}
+
+.terrain[data-lens='journey'] .motion-legend {
+  flex: 1 1 40ch;
+  max-width: none;
+  text-align: right;
+}
+
+.terrain[data-lens='journey'] .envelope {
+  padding: clamp(0.8rem, 1.5vw, 1.2rem) clamp(1rem, 2vw, 1.8rem);
+  gap: 0.25rem;
+}
+
+.terrain[data-lens='journey'] .envelope-primary {
+  font-size: clamp(1.4rem, 2.4vw, 2rem);
+}
+
+.terrain[data-lens='journey'] .link-row {
+  margin-top: 0.2rem;
+  font-size: 0.66rem;
+}
+
+/* ------------------------------------------------ reduced motion, honestly */
+
+:root[data-motion='reduced'] .route-flow,
+:root[data-motion='reduced'] .map-scan,
+:root[data-motion='reduced'] .map-now-dot,
+:root[data-motion='reduced'] .map-weather .weather-cell,
+:root[data-motion='reduced'] .map-note[data-kind='disruption'] .map-note-body {
+  animation: none !important;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .route-flow,
+  .map-scan,
+  .map-now-dot,
+  .map-weather .weather-cell,
+  .map-note[data-kind='disruption'] .map-note-body {
+    animation: none !important;
+  }
+}
+
+/* ------------------------------------------------- the phone route corridor */
+
+/*
+ * On a phone the map becomes a vertical corridor: the plane keeps its
+ * geometry but is given a tall aspect, the markers stop floating and become
+ * ordinary rows under it, and the decision envelope stays sticky at the foot.
+ * Nothing scrolls sideways.
+ */
+@media (max-width: 860px) {
+  .terrain[data-lens='journey'] {
+    grid-template-rows: auto auto auto auto auto auto;
+  }
+
+  .journey-map {
+    min-height: 0;
+  }
+
+  .map-frame {
+    height: 44vh;
+    min-height: 250px;
+  }
+
+  .map-plane,
+  .map-overlay {
+    position: absolute;
+    inset: 0;
+  }
+
+  .map-marker,
+  .map-note {
+    max-width: 46%;
+  }
+
+  .map-marker-detail,
+  .map-note-detail {
+    display: none;
+  }
+
+  .map-marker[data-kind='origin'] .map-marker-detail,
+  .map-marker[data-kind='lot'] .map-marker-detail {
+    display: block;
+  }
+
+  .map-stamp,
+  .map-weather-label {
+    position: static;
+    justify-items: start;
+    margin: 0.4rem 0 0;
+  }
+
+  .map-foot {
+    background: none;
+    padding-left: 0.9rem;
+    padding-right: 0.9rem;
+  }
+
+  .leg-list {
+    display: grid;
+    gap: 0.2rem;
+  }
+
+  .world--strip {
+    padding-top: 2.1rem;
+  }
+
+  .world--strip .segment-method {
+    display: block;
+  }
+}

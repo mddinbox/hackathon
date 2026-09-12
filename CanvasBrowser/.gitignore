@@ -1,0 +1,10 @@
+node_modules
+dist
+dist-test
+dist-demo
+test-results
+playwright-report
+blob-report
+.vite
+
+shots

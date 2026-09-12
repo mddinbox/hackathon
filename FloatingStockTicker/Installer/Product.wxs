@@ -1,0 +1,86 @@
+<Wix xmlns="http://wixtoolset.org/schemas/v4/wxs">
+  <Package
+      Name="Floating Stock Ticker"
+      Manufacturer="Floating Stock Ticker"
+      Version="$(var.ProductVersion)"
+      UpgradeCode="{0E9F1A7C-56B2-4A6B-9D3A-2F2C7B4D91E8}"
+      Scope="perUser"
+      Compressed="yes"
+      InstallerVersion="500">
+    <MajorUpgrade DowngradeErrorMessage="A newer version of Floating Stock Ticker is already installed." />
+    <MediaTemplate EmbedCab="yes" />
+
+    <Icon Id="FloatingStockTickerIcon" SourceFile="$(var.IconSource)" />
+    <Property Id="ARPPRODUCTICON" Value="FloatingStockTickerIcon" />
+    <Property Id="ARPNOMODIFY" Value="1" />
+
+    <StandardDirectory Id="LocalAppDataFolder">
+      <Directory Id="LocalAppDataProgramsFolder" Name="Programs">
+        <Directory Id="INSTALLFOLDER" Name="Floating Stock Ticker" />
+      </Directory>
+    </StandardDirectory>
+
+    <StandardDirectory Id="ProgramMenuFolder">
+      <Directory Id="ApplicationProgramsFolder" Name="Floating Stock Ticker" />
+    </StandardDirectory>
+
+    <Feature Id="MainFeature" Title="Floating Stock Ticker" Level="1">
+      <ComponentGroupRef Id="ApplicationComponents" />
+      <ComponentGroupRef Id="ShortcutComponents" />
+    </Feature>
+  </Package>
+
+  <Fragment>
+    <ComponentGroup Id="ApplicationComponents" Directory="INSTALLFOLDER">
+      <Component Id="ApplicationExecutableComponent" Guid="{A3D2B8C1-6E1F-4E03-9B2D-7A4C6F8D1E52}">
+        <File
+            Id="FloatingStockTickerExe"
+            Source="$(var.PublishDir)FloatingStockTicker.exe"
+            KeyPath="yes"
+            Checksum="yes" />
+        <RemoveFolder Id="RemoveInstallFolder" On="uninstall" />
+      </Component>
+    </ComponentGroup>
+
+    <ComponentGroup Id="ShortcutComponents">
+      <Component Id="StartMenuShortcutComponent" Directory="ApplicationProgramsFolder" Guid="{B4E3C9D2-7F20-4F14-AC3E-8B5D7F9E2A63}">
+        <Shortcut
+            Id="StartMenuShortcut"
+            Name="Floating Stock Ticker"
+            Description="Floating Stock Ticker"
+            Target="[#FloatingStockTickerExe]"
+            WorkingDirectory="INSTALLFOLDER"
+            Icon="FloatingStockTickerIcon"
+            IconIndex="0"
+            Advertise="no" />
+        <RegistryValue
+            Root="HKCU"
+            Key="Software\Floating Stock Ticker\Installer"
+            Name="StartMenuShortcut"
+            Type="integer"
+            Value="1"
+            KeyPath="yes" />
+        <RemoveFolder Id="RemoveStartMenuFolder" On="uninstall" />
+      </Component>
+
+      <Component Id="DesktopShortcutComponent" Directory="DesktopFolder" Guid="{C5F4D0E3-8A31-4025-BD4F-9C6E8A0F3B74}">
+        <Shortcut
+            Id="DesktopShortcut"
+            Name="Floating Stock Ticker"
+            Description="Floating Stock Ticker"
+            Target="[#FloatingStockTickerExe]"
+            WorkingDirectory="INSTALLFOLDER"
+            Icon="FloatingStockTickerIcon"
+            IconIndex="0"
+            Advertise="no" />
+        <RegistryValue
+            Root="HKCU"
+            Key="Software\Floating Stock Ticker\Installer"
+            Name="DesktopShortcut"
+            Type="integer"
+            Value="1"
+            KeyPath="yes" />
+      </Component>
+    </ComponentGroup>
+  </Fragment>
+</Wix>

@@ -1,0 +1,338 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#06111a">
+  <title>FutureGlass — Local intelligence, mapped</title>
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" crossorigin="">
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <div class="boot" id="boot" aria-hidden="true">
+    <div class="boot-orbit">
+      <span></span><span></span><span></span>
+      <div class="boot-mark">FG</div>
+    </div>
+    <p>Calibrating your local horizon</p>
+    <div class="boot-progress"><i></i></div>
+  </div>
+
+  <div class="noise"></div>
+  <div class="app-shell">
+    <header class="topbar">
+      <a class="brand" href="#" aria-label="FutureGlass home">
+        <span class="brand-mark"><i></i><i></i></span>
+        <span>FUTURE<span>GLASS</span></span>
+      </a>
+
+      <div class="location-pill">
+        <span class="pulse-dot"></span>
+        <div>
+          <small>LIVE LOCAL FEED</small>
+          <strong id="locationName">Seattle, WA</strong>
+        </div>
+        <button id="locateButton" type="button" aria-label="Use current location" title="Use current location">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2v3m0 14v3M2 12h3m14 0h3"/><circle cx="12" cy="12" r="5"/></svg>
+        </button>
+      </div>
+
+      <div class="header-actions">
+        <div class="signal"><i></i><i></i><i></i><i></i></div>
+        <span class="live-label">SYSTEM LIVE</span>
+        <button class="icon-button" id="soundButton" type="button" aria-label="Toggle ambient sound">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M11 5 6 9H2v6h4l5 4V5Z"/><path class="sound-wave" d="M15 9a4 4 0 0 1 0 6m3-9a8 8 0 0 1 0 12"/></svg>
+        </button>
+      </div>
+    </header>
+
+    <main>
+      <section class="hero">
+        <div class="hero-copy">
+          <p class="eyebrow"><span>●</span> HYPERLOCAL INTELLIGENCE</p>
+          <h1>See what’s happening.<br><em>Before it reaches you.</em></h1>
+          <p class="intro">Weather, air quality, and local stories — spatially connected to the places shaping your day.</p>
+        </div>
+
+        <aside class="weather-summary glass-panel">
+          <div class="weather-main">
+            <div class="weather-icon">
+              <svg viewBox="0 0 64 64" aria-hidden="true">
+                <circle cx="24" cy="23" r="12"/>
+                <path d="M24 4v5M5 23h5M10.5 9.5l4 4M38 9.5l-4 4"/>
+                <path class="cloud" d="M20 47h29a9 9 0 0 0 0-18 15 15 0 0 0-27 7A6 6 0 0 0 20 47Z"/>
+              </svg>
+            </div>
+            <div>
+              <div class="temp">58°</div>
+              <strong>Hazy sunshine</strong>
+              <span>Feels like 57°</span>
+            </div>
+          </div>
+          <div class="weather-stats">
+            <div><small>WIND</small><strong>SW 8 <span>mph</span></strong></div>
+            <div><small>HUMIDITY</small><strong>68<span>%</span></strong></div>
+            <div class="aqi-stat"><small>AIR QUALITY</small><strong><i></i> 127 <span>US AQI</span></strong></div>
+          </div>
+        </aside>
+      </section>
+
+      <section class="map-workspace" id="mapWorkspace">
+        <div class="map-toolbar glass-panel">
+          <div class="toolbar-label">
+            <svg class="scan-icon" viewBox="0 0 32 32" aria-hidden="true">
+              <circle cx="16" cy="16" r="12"></circle>
+              <circle cx="16" cy="16" r="3"></circle>
+              <path d="M16 16 25 10"></path>
+              <path d="M16 2v4M16 26v4M2 16h4M26 16h4"></path>
+            </svg>
+            <div><small>NEWS HORIZON</small><strong><span id="radiusValue">100</span> MILES</strong></div>
+          </div>
+          <div class="radius-control">
+            <input id="radiusSlider" type="range" min="25" max="250" step="25" value="100" aria-label="News radius in miles">
+            <div class="range-labels"><span>25</span><span>100</span><span>175</span><span>250 MI</span></div>
+          </div>
+          <div class="radius-presets" aria-label="Radius presets">
+            <button type="button" data-radius="50">50</button>
+            <button type="button" data-radius="100" class="active">100</button>
+            <button type="button" data-radius="250">250</button>
+          </div>
+          <div class="news-preference">
+            <span>
+              <small>NEWS PREFERENCE</small>
+              <strong>PERSONALIZE FEED</strong>
+            </span>
+            <details class="preference-menu" id="newsPreference">
+              <summary id="preferenceSummary">All categories</summary>
+              <div class="preference-options">
+                <label class="preference-all">
+                  <input type="checkbox" value="all" checked>
+                  <span>All categories</span>
+                </label>
+                <i></i>
+                <label><input type="checkbox" value="public_safety" checked><span>Public safety</span></label>
+                <label><input type="checkbox" value="weather" checked><span>Weather &amp; environment</span></label>
+                <label><input type="checkbox" value="transport" checked><span>Traffic &amp; transit</span></label>
+                <label><input type="checkbox" value="community" checked><span>Community &amp; schools</span></label>
+                <label><input type="checkbox" value="business" checked><span>Business &amp; development</span></label>
+                <label><input type="checkbox" value="technology" checked><span>Technology &amp; science</span></label>
+                <label><input type="checkbox" value="culture" checked><span>Arts, food &amp; events</span></label>
+              </div>
+            </details>
+          </div>
+          <a class="bing-link" href="https://maps.bing.com" target="_blank" rel="noreferrer">
+            EXPLORE IN BING MAPS
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 17 17 7M8 7h9v9"/></svg>
+          </a>
+        </div>
+
+        <div class="map-frame">
+          <div class="satellite-map" id="satelliteMap" aria-label="Satellite map centered on your precise location"></div>
+          <div class="drag-surface" id="dragSurface" aria-label="Drag left or right to rotate the map" role="application"></div>
+          <div class="map-glow"></div>
+          <div class="map-stage" id="mapStage">
+            <div class="map-grid"></div>
+            <div class="land land-one"></div>
+            <div class="land land-two"></div>
+            <div class="water"></div>
+            <div class="road road-one"></div>
+            <div class="road road-two"></div>
+            <div class="road road-three"></div>
+            <div class="district-lines"></div>
+            <div class="buildings" aria-hidden="true">
+              <i style="--x:19%;--y:34%;--h:38px"></i><i style="--x:24%;--y:43%;--h:55px"></i>
+              <i style="--x:32%;--y:25%;--h:28px"></i><i style="--x:38%;--y:39%;--h:67px"></i>
+              <i style="--x:45%;--y:30%;--h:45px"></i><i style="--x:52%;--y:47%;--h:74px"></i>
+              <i style="--x:58%;--y:29%;--h:32px"></i><i style="--x:64%;--y:42%;--h:58px"></i>
+              <i style="--x:72%;--y:36%;--h:35px"></i><i style="--x:77%;--y:52%;--h:49px"></i>
+              <i style="--x:43%;--y:58%;--h:31px"></i><i style="--x:29%;--y:62%;--h:42px"></i>
+            </div>
+
+            <div class="weather-layer smoke-layer active" data-layer="smoke">
+              <i data-lat="47.7042" data-lon="-120.6573"></i>
+              <i data-lat="47.5577" data-lon="-121.1734"></i>
+              <i data-lat="47.8556" data-lon="-120.4931"></i>
+              <i data-lat="47.3888" data-lon="-121.3812"></i>
+            </div>
+            <div class="weather-layer wind-layer" data-layer="wind">
+              <i></i><i></i><i></i><i></i><i></i><i></i>
+            </div>
+            <div class="weather-layer sun-layer" data-layer="sun"><i></i></div>
+
+            <div class="radius-ring">
+              <i></i>
+              <span>100 MI HORIZON</span>
+              <div class="ring-compass" aria-hidden="true">
+                <b class="north">N</b>
+                <b class="east">E</b>
+                <b class="south">S</b>
+                <b class="west">W</b>
+              </div>
+              <strong class="bearing-readout" id="bearingReadout">000°</strong>
+            </div>
+            <button class="map-pin home-pin" style="--x:50%;--y:48%" data-pin="home" aria-label="Your location">
+              <i class="accuracy-ring"></i>
+              <span></span><b>YOU</b>
+            </button>
+            <button class="map-pin alert-pin" data-pin="wildfire" aria-label="Wildfire alert">
+              <span>!</span>
+            </button>
+            <button class="map-pin news-pin" data-pin="transit" aria-label="Transit news">
+              <span></span>
+            </button>
+            <button class="map-pin news-pin" data-pin="festival" aria-label="Festival news">
+              <span></span>
+            </button>
+            <button class="map-pin news-pin" data-pin="water" aria-label="Waterfront news">
+              <span></span>
+            </button>
+            <button class="map-pin news-pin" data-pin="technology" aria-label="Technology news">
+              <span></span>
+            </button>
+            <button class="map-pin alert-pin" data-pin="coast" aria-label="Coastal weather alert">
+              <span>!</span>
+            </button>
+
+            <div class="map-label downtown">DOWNTOWN</div>
+            <div class="map-label bellevue">BELLEVUE</div>
+            <div class="map-label tacoma">TACOMA</div>
+            <div class="map-compass"><span>N</span><i></i></div>
+          </div>
+          <div class="geo-weather-overlay" id="geoWeatherOverlay" aria-hidden="true"></div>
+          <div class="geo-overlay" id="geoOverlay" aria-label="Geographic story locations"></div>
+
+          <svg class="anchor-lines" id="anchorLines" aria-hidden="true"></svg>
+
+          <article class="news-card priority" data-pin="wildfire" data-lat="47.7042" data-lon="-120.6573" data-location="CASCADES" style="--card-x:3%;--card-y:7%">
+            <div class="card-meta"><span class="alert-tag">AIR QUALITY ALERT</span><time>12 MIN AGO</time></div>
+            <h2>Wildfire smoke drifts west, pushing AQI into unhealthy range</h2>
+            <p>Upper-level winds are carrying smoke from three active fires across the Cascades.</p>
+            <footer><span>82 MI AWAY · CASCADES</span><button type="button" aria-label="Read story">↗</button></footer>
+          </article>
+
+          <article class="news-card" data-pin="transit" data-lat="47.6101" data-lon="-122.2015" data-location="BELLEVUE" style="--card-x:73%;--card-y:10%">
+            <div class="card-meta"><span>TRANSPORT</span><time>34 MIN AGO</time></div>
+            <h2>Light rail extension opens ahead of schedule</h2>
+            <p>Four new Eastside stations begin service this weekend.</p>
+            <footer><span>11 MI AWAY · BELLEVUE</span><button type="button" aria-label="Read story">↗</button></footer>
+          </article>
+
+          <article class="news-card compact" data-pin="festival" data-lat="47.2529" data-lon="-122.4443" data-location="TACOMA" style="--card-x:72%;--card-y:64%">
+            <div class="card-meta"><span>CULTURE</span><time>1 HR AGO</time></div>
+            <h2>Night market returns with 80 local vendors</h2>
+            <footer><span>32 MI AWAY · TACOMA</span><button type="button" aria-label="Read story">↗</button></footer>
+          </article>
+
+          <article class="news-card compact" data-pin="water" data-lat="47.6072" data-lon="-122.3425" data-location="PIER 62" style="--card-x:2%;--card-y:68%">
+            <div class="card-meta"><span>LOCAL</span><time>2 HR AGO</time></div>
+            <h2>Waterfront park unveils new elevated overlook</h2>
+            <footer><span>6 MI AWAY · PIER 62</span><button type="button" aria-label="Read story">↗</button></footer>
+          </article>
+
+          <article class="news-card compact" data-pin="technology" data-lat="47.4235" data-lon="-120.3103" data-location="CENTRAL WA" style="--card-x:73%;--card-y:43%">
+            <div class="card-meta"><span>TECHNOLOGY</span><time>48 MIN AGO</time></div>
+            <h2>Regional clean-energy hub secures expansion funding</h2>
+            <footer><span>148 MI AWAY · CENTRAL WA</span><button type="button" aria-label="Read story">↗</button></footer>
+          </article>
+
+          <article class="news-card compact priority" data-pin="coast" data-lat="46.1883" data-lon="-123.8313" data-location="NORTH COAST" style="--card-x:3%;--card-y:44%">
+            <div class="card-meta"><span class="alert-tag">COASTAL WEATHER</span><time>21 MIN AGO</time></div>
+            <h2>High-wind advisory issued along the northern coast</h2>
+            <footer><span>224 MI AWAY · NORTH COAST</span><button type="button" aria-label="Read story">↗</button></footer>
+          </article>
+
+          <div class="map-status">
+            <span><i></i> 24 STORIES IN RANGE</span>
+            <span id="refreshStatus">UPDATED JUST NOW · NEXT IN 15:00</span>
+          </div>
+        </div>
+      </section>
+
+      <section class="lower-dashboard">
+        <div class="layer-controls glass-panel">
+          <div>
+            <p class="eyebrow">ATMOSPHERIC LAYERS</p>
+            <h3>What’s moving above you</h3>
+          </div>
+          <div class="layer-buttons">
+            <button class="layer-button active" type="button" data-layer="smoke">
+              <span class="layer-visual smoke-visual"><i></i><i></i></span>
+              <span><small>OVERLAY</small><strong>Smoke</strong></span>
+              <b>ON</b>
+            </button>
+            <button class="layer-button" type="button" data-layer="wind">
+              <span class="layer-visual wind-visual">≋</span>
+              <span><small>OVERLAY</small><strong>Wind</strong></span>
+              <b>OFF</b>
+            </button>
+            <button class="layer-button" type="button" data-layer="sun">
+              <span class="layer-visual sun-visual">☼</span>
+              <span><small>OVERLAY</small><strong>Sun</strong></span>
+              <b>OFF</b>
+            </button>
+          </div>
+        </div>
+
+        <div class="briefing glass-panel">
+          <div class="briefing-number">01</div>
+          <div>
+            <p class="eyebrow">WHY THE AIR FEELS DIFFERENT</p>
+            <h3>Smoke is arriving in two waves</h3>
+            <p>The first, lighter plume reaches the metro this evening. A denser band is forecast overnight as winds shift west.</p>
+          </div>
+          <div class="timeline">
+            <div><span>NOW</span><i class="mild"></i><b>MODERATE</b></div>
+            <div><span>8 PM</span><i class="bad"></i><b>UNHEALTHY</b></div>
+            <div><span>6 AM</span><i class="mild"></i><b>IMPROVING</b></div>
+          </div>
+        </div>
+      </section>
+    </main>
+
+    <footer class="footer">
+      <span>FUTUREGLASS / LOCAL SIGNAL NETWORK</span>
+      <span>NEWS: GOOGLE NEWS RSS · WEATHER: OPEN-METEO · IMAGERY: ESRI</span>
+    </footer>
+  </div>
+
+  <dialog class="story-dialog" id="storyDialog">
+    <div class="story-dialog-glow"></div>
+    <header>
+      <div>
+        <p class="eyebrow" id="storyCategory">LOCAL INTELLIGENCE</p>
+        <div class="story-location" id="storyLocation"></div>
+      </div>
+      <button class="story-close" id="storyClose" type="button" aria-label="Close story">×</button>
+    </header>
+    <div class="story-content">
+      <div class="story-index">LOCAL / <span id="storyIndex">01</span></div>
+      <h2 id="storyTitle"></h2>
+      <p class="story-deck" id="storyDeck"></p>
+      <div class="story-byline">
+        <span id="storyPublisher"></span>
+        <time id="storyTime"></time>
+      </div>
+      <div class="story-body" id="storyBody"></div>
+      <aside class="story-facts">
+        <p class="eyebrow">SOURCE VERIFICATION</p>
+        <ul id="storyFacts"></ul>
+      </aside>
+    </div>
+    <footer>
+      <span id="storyDistance"></span>
+      <a id="storySourceLink" href="#" target="_blank" rel="noreferrer">
+        OPEN SOURCED ARTICLE
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 17 17 7M8 7h9v9"/></svg>
+      </a>
+      <a id="storyMapLink" href="https://maps.bing.com" target="_blank" rel="noreferrer">
+        VIEW LOCATION IN BING MAPS
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 17 17 7M8 7h9v9"/></svg>
+      </a>
+    </footer>
+  </dialog>
+
+  <div class="toast" id="toast" role="status"></div>
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" crossorigin=""></script>
+  <script src="app.js"></script>
+</body>
+</html>
